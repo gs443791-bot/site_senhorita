@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   logoUrl: '/assets/aistudio/WhatsApp_Image_2026-09-11_at_10.11.39__1__6db93c46.jpeg',
   aboutText:
     'A Senhorita Acessórios nasceu para trazer brilho, delicadeza e sofisticação para os seus momentos especiais. Nossas peças combinam acabamento refinado com design atemporal.',
+  adminPin: '1234',
 };
 
 // Curated sample products available if user optionally clicks "Carregar Amostras de Teste"

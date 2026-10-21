@@ -134,10 +134,10 @@ export const Footer: React.FC<FooterProps> = ({
           <div className="flex items-center gap-4">
             <button
               onClick={onOpenAdmin}
-              className="text-[#9D723B] hover:underline flex items-center gap-1 text-[11px]"
+              className="text-[#9D723B] hover:text-[#4A1D2B] hover:underline flex items-center gap-1.5 text-[11px] font-medium transition-colors"
             >
-              <Settings className="w-3 h-3" />
-              <span>Acesso ao Painel Administrativo</span>
+              <Settings className="w-3.5 h-3.5 text-[#C59B63]" />
+              <span>Área da Lojista (Acesso com Senha)</span>
             </button>
           </div>
         </div>
@@ -145,3 +145,4 @@ export const Footer: React.FC<FooterProps> = ({
     </footer>
   );
 };
+

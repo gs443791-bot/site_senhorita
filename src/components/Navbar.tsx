@@ -95,30 +95,30 @@ export const Navbar: React.FC<NavbarProps> = ({
             )}
           </button>
 
-          {/* Admin Toggle Button */}
-          <button
-            onClick={onToggleAdmin}
-            aria-label={isAdmin ? 'Voltar para Loja' : 'Acessar Painel Administrativo'}
-            className={`flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-medium border transition-all ${
-              isAdmin
-                ? 'bg-gradient-to-r from-[#C59B63] to-[#DFBA73] text-white border-transparent shadow-gold-sm hover:brightness-105'
-                : 'bg-white hover:bg-[#FDF2F4] text-[#7A5B35] border-[#E8D4B8]'
-            }`}
-          >
-            {isAdmin ? (
-              <>
-                <Store className="w-4 h-4" />
-                <span className="hidden sm:inline font-semibold">Ver Loja</span>
-              </>
-            ) : (
-              <>
-                <Settings className="w-4 h-4 text-[#C59B63]" />
-                <span className="hidden sm:inline">Painel Admin</span>
-              </>
-            )}
-          </button>
+          {/* Admin Toggle / Lock Button */}
+          {isAdmin ? (
+            <button
+              onClick={onToggleAdmin}
+              aria-label="Sair do Painel e Voltar para a Loja"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold bg-gradient-to-r from-[#C59B63] to-[#DFBA73] text-white shadow-gold-sm hover:brightness-105 transition-all cursor-pointer"
+            >
+              <Store className="w-4 h-4" />
+              <span className="hidden sm:inline">Ver Loja (Cliente)</span>
+            </button>
+          ) : (
+            <button
+              onClick={onToggleAdmin}
+              aria-label="Acesso Restrito da Lojista"
+              title="Acesso da Proprietária (Requer Senha)"
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full text-xs font-medium bg-white hover:bg-[#FDF2F4] text-[#7A5B35] border border-[#E8D4B8] transition-all cursor-pointer"
+            >
+              <Settings className="w-3.5 h-3.5 text-[#C59B63]" />
+              <span className="hidden md:inline">Área da Lojista</span>
+            </button>
+          )}
         </div>
       </div>
     </header>
   );
 };
+

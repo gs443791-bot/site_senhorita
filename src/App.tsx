@@ -18,8 +18,10 @@ import { ProductDetailModal } from './components/ProductDetailModal';
 import { CartDrawer } from './components/CartDrawer';
 import { AdminPanel } from './components/AdminPanel';
 import { ProductFormModal } from './components/ProductFormModal';
+import { AdminLoginModal } from './components/AdminLoginModal';
 import { Footer } from './components/Footer';
-import { Sparkles, ShoppingBag, Plus, Settings } from 'lucide-react';
+import { Sparkles, Plus, MessageCircle, Lock, ShieldCheck } from 'lucide-react';
+import { cleanPhoneNumber } from './utils/shopLogic';
 
 export default function App() {
   const [products, setProducts] = useState<Product[]>([]);
@@ -39,7 +41,18 @@ export default function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [isCartOpen, setIsCartOpen] = useState(false);
-  const [isAdminView, setIsAdminView] = useState(false);
+
+  // Security: Client vs Admin mode
+  const [isAdminAuthenticated, setIsAdminAuthenticated] = useState<boolean>(() => {
+    try {
+      return sessionStorage.getItem('senhorita_admin_auth') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const [isAdminView, setIsAdminView] = useState<boolean>(false);
+  const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
@@ -110,6 +123,44 @@ export default function App() {
     return cart.reduce((acc, item) => acc + item.quantity, 0);
   }, [cart]);
 
+  // Admin Access Handlers
+  const handleToggleAdmin = () => {
+    if (isAdminView) {
+      // Return to customer storefront
+      setIsAdminView(false);
+    } else {
+      // Trying to enter Admin Panel
+      if (isAdminAuthenticated) {
+        setIsAdminView(true);
+      } else {
+        setIsLoginModalOpen(true);
+      }
+    }
+  };
+
+  const handleLoginSuccess = () => {
+    setIsAdminAuthenticated(true);
+    try {
+      sessionStorage.setItem('senhorita_admin_auth', 'true');
+    } catch (e) {
+      console.warn(e);
+    }
+    setIsLoginModalOpen(false);
+    setIsAdminView(true);
+    showToast('Acesso de administradora concedido! ✨');
+  };
+
+  const handleLogoutAdmin = () => {
+    setIsAdminAuthenticated(false);
+    try {
+      sessionStorage.removeItem('senhorita_admin_auth');
+    } catch (e) {
+      console.warn(e);
+    }
+    setIsAdminView(false);
+    showToast('Modo administradora bloqueado. Exibindo visão da cliente.');
+  };
+
   // Cart operations
   const handleAddToCart = (product: Product, quantity = 1) => {
     if (product.stock <= 0) {
@@ -164,45 +215,73 @@ export default function App() {
     await refreshData();
   };
 
-  // Product CRUD
+  // Product CRUD (Restricted strictly to authenticated admin)
   const handleSaveProduct = async (
     productData: Omit<Product, 'id' | 'createdAt'> & { id?: string }
   ) => {
+    if (!isAdminAuthenticated) {
+      showToast('Apenas a administradora da loja pode cadastrar ou alterar peças.');
+      return;
+    }
     await storage.saveProduct(productData);
     await refreshData();
     showToast('Peça salva no catálogo com sucesso! ✨');
   };
 
   const handleDeleteProduct = async (id: string) => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.deleteProduct(id);
     await refreshData();
     showToast('Peça excluída.');
   };
 
   const handleUpdateStock = async (productId: string, newStock: number) => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.updateStock(productId, newStock);
     await refreshData();
   };
 
   const handleUpdateOrderStatus = async (orderId: string, newStatus: OrderStatus) => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.updateOrderStatus(orderId, newStatus);
     await refreshData();
     showToast(`Status do pedido atualizado para "${newStatus}".`);
   };
 
   const handleSaveSettings = async (newSettings: StoreSettings) => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.saveSettings(newSettings);
     setSettings(newSettings);
     showToast('Configurações da loja salvas com sucesso!');
   };
 
   const handleLoadSamples = async () => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.loadSampleProducts();
     await refreshData();
     showToast('Amostras de teste carregadas no catálogo! ✨');
   };
 
   const handleClearCatalog = async () => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     await storage.clearAllProducts();
     await refreshData();
     showToast('Catálogo limpo com sucesso.');
@@ -221,6 +300,10 @@ export default function App() {
   };
 
   const handleImportData = async (jsonStr: string) => {
+    if (!isAdminAuthenticated) {
+      showToast('Ação restrita à administradora.');
+      return;
+    }
     const success = storage.importData(jsonStr);
     if (success) {
       await refreshData();
@@ -229,6 +312,12 @@ export default function App() {
       alert('Arquivo de backup inválido.');
     }
   };
+
+  const customerWhatsappContactUrl = `https://wa.me/${cleanPhoneNumber(
+    settings.whatsappNumber
+  )}?text=${encodeURIComponent(
+    `Olá, ${settings.storeName}! Adorei as peças e gostaria de saber as novidades disponíveis para compra!`
+  )}`;
 
   return (
     <div className="min-h-screen flex flex-col bg-[#FFF9FA] text-[#332227]">
@@ -246,12 +335,12 @@ export default function App() {
         cartCount={cartTotalItems}
         onOpenCart={() => setIsCartOpen(true)}
         isAdmin={isAdminView}
-        onToggleAdmin={() => setIsAdminView((prev) => !prev)}
+        onToggleAdmin={handleToggleAdmin}
       />
 
       {/* Main Content Area */}
-      {isAdminView ? (
-        /* Admin Dashboard View */
+      {isAdminView && isAdminAuthenticated ? (
+        /* Admin Dashboard View (Authenticated only) */
         <main className="flex-1">
           <AdminPanel
             products={products}
@@ -276,10 +365,11 @@ export default function App() {
             onExportData={handleExportData}
             onImportData={handleImportData}
             isSupabaseConnected={isSupabaseConfigured}
+            onLogoutAdmin={handleLogoutAdmin}
           />
         </main>
       ) : (
-        /* Customer Storefront View */
+        /* Customer Storefront View (Clients browsing) */
         <main className="flex-1">
           {/* Hero Banner */}
           <HeroBanner
@@ -324,43 +414,82 @@ export default function App() {
 
             {/* Empty catalog vs Grid */}
             {filteredProducts.length === 0 ? (
-              <div className="bg-white rounded-3xl p-12 text-center border border-[#F4CCD6] shadow-gold-sm max-w-2xl mx-auto my-6 space-y-4">
+              <div className="bg-white rounded-3xl p-8 sm:p-12 text-center border border-[#F4CCD6] shadow-gold-sm max-w-2xl mx-auto my-6 space-y-4">
                 <div className="w-16 h-16 rounded-full bg-[#FFF0F3] border border-[#F4CCD6] flex items-center justify-center mx-auto text-[#B5486B]">
                   <Sparkles className="w-8 h-8 text-[#DFBA73]" />
                 </div>
-                <h3 className="font-serif text-2xl font-bold text-[#3B1522]">
-                  {products.length === 0
-                    ? 'O catálogo está novinho e pronto para o seu cadastro!'
-                    : 'Nenhuma peça encontrada nesta categoria'}
-                </h3>
-                <p className="text-xs text-[#7A5461] max-w-md mx-auto leading-relaxed">
-                  {products.length === 0
-                    ? 'Conforme solicitado, não cadastramos nenhum produto prévio para que você adicione suas próprias bijuterias e semijoias. Acesse o Painel Administrativo para cadastrar a primeira peça ou carregar amostras de teste!'
-                    : 'Tente selecionar outra sub-aba ou limpar o filtro de busca.'}
-                </p>
 
-                <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
-                  <button
-                    onClick={() => {
-                      setProductToEdit(null);
-                      setIsProductModalOpen(true);
-                      setIsAdminView(true);
-                    }}
-                    className="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm flex items-center gap-1.5 cursor-pointer"
-                  >
-                    <Plus className="w-4 h-4" />
-                    <span>Cadastrar Peça no Catálogo</span>
-                  </button>
-
-                  {products.length === 0 && (
+                {products.length === 0 ? (
+                  /* Zero products: tailored strictly depending on whether Admin or Client */
+                  isAdminAuthenticated ? (
+                    <>
+                      <h3 className="font-serif text-2xl font-bold text-[#3B1522]">
+                        Catálogo pronto para o seu cadastro!
+                      </h3>
+                      <p className="text-xs text-[#7A5461] max-w-md mx-auto leading-relaxed">
+                        Você está autenticada como Administradora. Suas clientes verão uma mensagem convidativa enquanto você adiciona as primeiras peças no catálogo.
+                      </p>
+                      <div className="pt-2 flex flex-wrap items-center justify-center gap-3">
+                        <button
+                          onClick={() => {
+                            setProductToEdit(null);
+                            setIsProductModalOpen(true);
+                          }}
+                          className="px-5 py-2.5 rounded-full text-xs font-bold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm flex items-center gap-1.5 cursor-pointer"
+                        >
+                          <Plus className="w-4 h-4" />
+                          <span>Cadastrar Peça no Catálogo</span>
+                        </button>
+                        <button
+                          onClick={handleLoadSamples}
+                          className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] cursor-pointer"
+                        >
+                          Carregar Amostras (Teste)
+                        </button>
+                      </div>
+                    </>
+                  ) : (
+                    /* Customer view: NO product creation buttons! */
+                    <>
+                      <h3 className="font-serif text-2xl font-bold text-[#3B1522]">
+                        Novas Coleções Chegando em Breve! ✨
+                      </h3>
+                      <p className="text-xs text-[#7A5461] max-w-md mx-auto leading-relaxed">
+                        Nosso catálogo online de semijoias e bijuterias finas está sendo preparado com muito carinho. Para conhecer as peças em primeira mão ou fazer pedidos especiais, fale diretamente conosco no WhatsApp!
+                      </p>
+                      <div className="pt-2 flex justify-center">
+                        <a
+                          href={customerWhatsappContactUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="px-6 py-3 rounded-full text-xs sm:text-sm font-semibold bg-[#25D366] hover:bg-[#20bd5a] text-white transition-all shadow-md flex items-center gap-2"
+                        >
+                          <MessageCircle className="w-4 h-4 fill-white" />
+                          <span>Falar Conosco no WhatsApp</span>
+                        </a>
+                      </div>
+                    </>
+                  )
+                ) : (
+                  /* Products exist, but category filter has 0 */
+                  <>
+                    <h3 className="font-serif text-xl font-bold text-[#3B1522]">
+                      Nenhuma peça encontrada nesta categoria
+                    </h3>
+                    <p className="text-xs text-[#7A5461] max-w-md mx-auto">
+                      Tente selecionar outra sub-aba ou limpar a busca acima para ver mais peças.
+                    </p>
                     <button
-                      onClick={handleLoadSamples}
-                      className="px-5 py-2.5 rounded-full text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] cursor-pointer"
+                      onClick={() => {
+                        setActiveCategory('todos');
+                        setSearchTerm('');
+                      }}
+                      className="px-5 py-2 rounded-full text-xs font-semibold text-[#8C3A55] bg-[#FFF0F3] border border-[#F4CCD6] hover:bg-[#FCE7EC]"
                     >
-                      Carregar Amostras (Teste)
+                      Ver Todas as Peças
                     </button>
-                  )}
-                </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -379,7 +508,7 @@ export default function App() {
         </main>
       )}
 
-      {/* Product Detail Modal */}
+      {/* Product Detail Modal (Clients & Admin) */}
       <ProductDetailModal
         product={selectedProduct}
         settings={settings}
@@ -387,7 +516,7 @@ export default function App() {
         onAddToCart={(prod, qty) => handleAddToCart(prod, qty)}
       />
 
-      {/* Cart Drawer */}
+      {/* Cart Drawer (Shopping & WhatsApp Checkout) */}
       <CartDrawer
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
@@ -399,13 +528,23 @@ export default function App() {
         onClearCart={handleClearCart}
       />
 
-      {/* Product Form Modal (Admin) */}
-      <ProductFormModal
-        isOpen={isProductModalOpen}
-        onClose={() => setIsProductModalOpen(false)}
-        productToEdit={productToEdit}
-        onSave={handleSaveProduct}
-        existingProductsCount={products.length}
+      {/* Product Form Modal (Admin Only - Authenticated) */}
+      {isAdminAuthenticated && (
+        <ProductFormModal
+          isOpen={isProductModalOpen}
+          onClose={() => setIsProductModalOpen(false)}
+          productToEdit={productToEdit}
+          onSave={handleSaveProduct}
+          existingProductsCount={products.length}
+        />
+      )}
+
+      {/* Admin Login Modal (Restricts access from customers) */}
+      <AdminLoginModal
+        isOpen={isLoginModalOpen}
+        onClose={() => setIsLoginModalOpen(false)}
+        onSuccess={handleLoginSuccess}
+        correctPin={settings.adminPin || '1234'}
       />
 
       {/* Global Footer */}
@@ -415,10 +554,7 @@ export default function App() {
           setIsAdminView(false);
           setActiveCategory(cat);
         }}
-        onOpenAdmin={() => {
-          setIsAdminView(true);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
-        }}
+        onOpenAdmin={handleToggleAdmin}
       />
     </div>
   );

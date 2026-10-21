@@ -143,6 +143,7 @@ test('generateSingleProductWhatsAppUrl generates valid wa.me link with encoded t
     pixBeneficiary: 'Senhorita Acessórios',
     bannerNotice: '',
     aboutText: '',
+    adminPin: '1234',
   };
 
   const url = generateSingleProductWhatsAppUrl(product, settings);
@@ -162,6 +163,7 @@ test('generateCartWhatsAppUrl builds comprehensive message for order', () => {
     pixBeneficiary: '',
     bannerNotice: '',
     aboutText: '',
+    adminPin: '1234',
   };
 
   const order: Order = {

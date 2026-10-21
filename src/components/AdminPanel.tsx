@@ -30,6 +30,7 @@ import {
   AlertTriangle,
   RefreshCw,
   Sliders,
+  Lock,
 } from 'lucide-react';
 
 interface AdminPanelProps {
@@ -49,6 +50,7 @@ interface AdminPanelProps {
   onExportData: () => void;
   onImportData: (jsonStr: string) => void;
   isSupabaseConnected: boolean;
+  onLogoutAdmin: () => void;
 }
 
 export const AdminPanel: React.FC<AdminPanelProps> = ({
@@ -68,6 +70,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onExportData,
   onImportData,
   isSupabaseConnected,
+  onLogoutAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<
     'produtos' | 'estoque' | 'pedidos' | 'clientes' | 'config' | 'integracoes'
@@ -192,6 +195,15 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
             >
               <Plus className="w-4 h-4" />
               <span>Cadastrar Peça</span>
+            </button>
+
+            <button
+              onClick={onLogoutAdmin}
+              className="px-3.5 py-2.5 rounded-2xl text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] flex items-center gap-1.5 cursor-pointer"
+              title="Encerrar sessão e bloquear o painel administrativo contra clientes"
+            >
+              <Lock className="w-3.5 h-3.5 text-[#B5486B]" />
+              <span className="hidden sm:inline">Bloquear / Sair</span>
             </button>
           </div>
         </div>
@@ -949,6 +961,26 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA]"
                 />
               </div>
+
+              {/* Security PIN for Admin Protection */}
+              <div className="p-4 rounded-2xl bg-[#FFF5F7] border border-[#F4CCD6] space-y-2">
+                <label className="block text-xs font-bold text-[#8C3A55] flex items-center gap-1.5">
+                  <Sparkles className="w-4 h-4 text-[#C59B63]" />
+                  <span>Senha de Acesso da Administradora (Proteção contra clientes)</span>
+                </label>
+                <input
+                  type="text"
+                  required
+                  value={storeForm.adminPin || '1234'}
+                  onChange={(e) => setStoreForm({ ...storeForm, adminPin: e.target.value })}
+                  placeholder="Ex: 1234 ou sua senha pessoal"
+                  className="w-full sm:w-64 px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                />
+                <p className="text-[11px] text-[#7A5461]">
+                  Esta senha impede que clientes acessem o painel administrativo ou cadastrem produtos. Apenas quem souber esta senha pode entrar no painel.
+                </p>
+              </div>
+
 
               {/* Save Button */}
               <div className="pt-2 flex items-center justify-between">
