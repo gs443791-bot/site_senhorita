@@ -106,6 +106,8 @@ export interface StoreSettings {
   bannerNotice: string;
   logoUrl?: string;
   aboutText: string;
+  heroTitle?: string;
   adminPin: string; // PIN for administrative access protection
 }
+
 

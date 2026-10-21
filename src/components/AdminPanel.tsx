@@ -856,9 +856,24 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                     type="text"
                     value={storeForm.tagline}
                     onChange={(e) => setStoreForm({ ...storeForm, tagline: e.target.value })}
+                    placeholder="Ex: Acessórios Exclusivos (opcional)"
                     className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
                   />
                 </div>
+              </div>
+
+              {/* Hero Title */}
+              <div>
+                <label className="block text-xs font-semibold text-[#4A1D2B] mb-1">
+                  Frase Principal de Destaque no Topo
+                </label>
+                <input
+                  type="text"
+                  value={storeForm.heroTitle || ''}
+                  onChange={(e) => setStoreForm({ ...storeForm, heroTitle: e.target.value })}
+                  placeholder="Ex: Realce sua beleza com a Senhorita Acessórios"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                />
               </div>
 
               {/* WhatsApp setup */}

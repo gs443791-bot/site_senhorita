@@ -30,14 +30,26 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
           <div className="lg:col-span-7 text-center lg:text-left">
             <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[#FCE7EC] border border-[#F4CCD6] text-xs font-semibold text-[#8C3A55] mb-4">
               <Sparkles className="w-3.5 h-3.5 text-[#C59B63]" />
-              <span>Coleção Exclusiva de Bijuterias & Semijoias Finas</span>
+              <span>Coleção Exclusiva Senhorita Acessórios</span>
             </div>
 
-            <h1 className="font-serif text-4xl sm:text-5xl lg:text-6xl font-bold text-[#3B1522] tracking-tight leading-none mb-4">
-              Realce o seu brilho com a{' '}
-              <span className="text-gold-gradient underline decoration-[#DFBA73]/40 decoration-wavy">
-                {settings.storeName}
-              </span>
+            <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold text-[#3B1522] tracking-tight leading-[1.18] mb-4">
+              {settings.heroTitle ? (
+                settings.heroTitle.includes(settings.storeName) ? (
+                  <>
+                    {settings.heroTitle.split(settings.storeName)[0]}
+                    <span className="text-gold-gradient">{settings.storeName}</span>
+                    {settings.heroTitle.split(settings.storeName)[1]}
+                  </>
+                ) : (
+                  <span>{settings.heroTitle}</span>
+                )
+              ) : (
+                <>
+                  Realce sua beleza com a{' '}
+                  <span className="text-gold-gradient">{settings.storeName}</span>
+                </>
+              )}
             </h1>
 
             <p className="text-sm sm:text-base text-[#6E4250] max-w-2xl mx-auto lg:mx-0 leading-relaxed mb-6 font-normal">

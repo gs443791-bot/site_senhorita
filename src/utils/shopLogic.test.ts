@@ -135,7 +135,7 @@ test('generateSingleProductWhatsAppUrl generates valid wa.me link with encoded t
 
   const settings: StoreSettings = {
     storeName: 'Senhorita Acessórios',
-    tagline: 'Semijoias e Bijuterias Finas',
+    tagline: '',
     whatsappNumber: '(11) 99999-8888',
     instagramHandle: '@senhoritaacessorios',
     pixKey: '11999998888',

@@ -455,7 +455,7 @@ export default function App() {
                         Novas Coleções Chegando em Breve! ✨
                       </h3>
                       <p className="text-xs text-[#7A5461] max-w-md mx-auto leading-relaxed">
-                        Nosso catálogo online de semijoias e bijuterias finas está sendo preparado com muito carinho. Para conhecer as peças em primeira mão ou fazer pedidos especiais, fale diretamente conosco no WhatsApp!
+                        Nosso catálogo online exclusivo está sendo preparado com muito carinho. Para conhecer as novidades em primeira mão ou fazer pedidos especiais, fale diretamente conosco no WhatsApp!
                       </p>
                       <div className="pt-2 flex justify-center">
                         <a

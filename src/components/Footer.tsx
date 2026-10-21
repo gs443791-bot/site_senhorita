@@ -35,9 +35,11 @@ export const Footer: React.FC<FooterProps> = ({
                 <span className="block font-serif text-2xl font-bold tracking-tight text-[#3B1522]">
                   {settings.storeName}
                 </span>
-                <span className="block text-[11px] font-medium tracking-widest uppercase text-[#B58448]">
-                  {settings.tagline}
-                </span>
+                {settings.tagline && settings.tagline !== 'Semijoias & Bijuterias Finas' && (
+                  <span className="block text-[11px] font-medium tracking-widest uppercase text-[#B58448]">
+                    {settings.tagline}
+                  </span>
+                )}
               </div>
             </div>
 

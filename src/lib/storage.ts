@@ -11,7 +11,7 @@ const STORAGE_KEYS = {
 
 export const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'Senhorita Acessórios',
-  tagline: 'Semijoias & Bijuterias Finas',
+  tagline: '',
   whatsappNumber: '5511999999999',
   instagramHandle: '@senhoritaacessorios',
   pixKey: 'contato@senhoritaacessorios.com.br',
@@ -22,6 +22,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   logoUrl: '/assets/aistudio/WhatsApp_Image_2026-09-11_at_10.11.39__1__6db93c46.jpeg',
   aboutText:
     'A Senhorita Acessórios nasceu para trazer brilho, delicadeza e sofisticação para os seus momentos especiais. Nossas peças combinam acabamento refinado com design atemporal.',
+  heroTitle: 'Realce sua beleza com a Senhorita Acessórios',
   adminPin: '1234',
 };
 
@@ -393,7 +394,11 @@ class StorageService {
       return DEFAULT_SETTINGS;
     }
     try {
-      return { ...DEFAULT_SETTINGS, ...JSON.parse(local) };
+      const parsed = JSON.parse(local);
+      if (parsed.tagline === 'Semijoias & Bijuterias Finas') {
+        parsed.tagline = '';
+      }
+      return { ...DEFAULT_SETTINGS, ...parsed };
     } catch {
       return DEFAULT_SETTINGS;
     }

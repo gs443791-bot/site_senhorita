@@ -7,7 +7,7 @@
 CREATE TABLE IF NOT EXISTS store_settings (
   id TEXT PRIMARY KEY DEFAULT 'default',
   store_name TEXT NOT NULL DEFAULT 'Senhorita Acessórios',
-  tagline TEXT DEFAULT 'Bijuterias Finas e Semijoias Exclusivas',
+  tagline TEXT DEFAULT '',
   whatsapp_number TEXT NOT NULL DEFAULT '5511999999999',
   instagram_handle TEXT DEFAULT '@senhoritaacessorios',
   pix_key TEXT DEFAULT '',

@@ -55,9 +55,11 @@ export const Navbar: React.FC<NavbarProps> = ({
               <span className="block font-serif text-2xl font-bold tracking-tight text-[#4A1D2B] leading-none group-hover:text-[#9D723B] transition-colors">
                 {settings.storeName}
               </span>
-              <span className="block text-[11px] font-medium tracking-widest uppercase text-[#B58448] mt-1">
-                {settings.tagline}
-              </span>
+              {settings.tagline && settings.tagline !== 'Semijoias & Bijuterias Finas' && (
+                <span className="block text-[11px] font-medium tracking-widest uppercase text-[#B58448] mt-1">
+                  {settings.tagline}
+                </span>
+              )}
             </div>
           </button>
         </div>
