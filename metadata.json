@@ -1,0 +1,6 @@
+{
+  "name": "Senhorita Acessórios - Bijuterias e Semijoias",
+  "description": "Catálogo online exclusivo de bijuterias finas e semijoias da Senhorita Acessórios com finalização direta no WhatsApp, controle de estoque automático e painel administrativo.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
