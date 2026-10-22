@@ -9,6 +9,7 @@ import {
   applyOrderStockDeduction,
   restoreOrderStock,
   generateOrderNumber,
+  generateUUID,
 } from './shopLogic';
 import { CartItem, Order, Product, StoreSettings } from '../types';
 
@@ -199,4 +200,10 @@ test('generateOrderNumber generates code starting with SR-', () => {
   const code = generateOrderNumber();
   assert.ok(code.startsWith('SR-'));
   assert.equal(code.length, 7);
+});
+
+test('generateUUID returns a valid RFC4122 v4 formatted string', () => {
+  const uuid = generateUUID();
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+  assert.ok(uuidRegex.test(uuid));
 });

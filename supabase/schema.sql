@@ -20,7 +20,7 @@ CREATE TABLE IF NOT EXISTS store_settings (
 
 -- 2. Tabela de Produtos (Bijuterias e Semijoias)
 CREATE TABLE IF NOT EXISTS products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   code TEXT NOT NULL UNIQUE,
   name TEXT NOT NULL,
   category TEXT NOT NULL CHECK (category IN (
@@ -47,7 +47,7 @@ CREATE TABLE IF NOT EXISTS products (
 
 -- 3. Tabela de Clientes
 CREATE TABLE IF NOT EXISTS customers (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   name TEXT NOT NULL,
   phone TEXT NOT NULL UNIQUE,
   address TEXT DEFAULT '',
@@ -60,7 +60,7 @@ CREATE TABLE IF NOT EXISTS customers (
 
 -- 4. Tabela de Pedidos
 CREATE TABLE IF NOT EXISTS orders (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
   order_number TEXT NOT NULL UNIQUE,
   customer_name TEXT NOT NULL,
   customer_phone TEXT NOT NULL,
@@ -83,9 +83,9 @@ CREATE TABLE IF NOT EXISTS orders (
 
 -- 5. Itens do Pedido
 CREATE TABLE IF NOT EXISTS order_items (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  order_id UUID REFERENCES orders(id) ON DELETE CASCADE,
-  product_id UUID REFERENCES products(id) ON DELETE SET NULL,
+  id TEXT PRIMARY KEY DEFAULT gen_random_uuid()::text,
+  order_id TEXT REFERENCES orders(id) ON DELETE CASCADE,
+  product_id TEXT REFERENCES products(id) ON DELETE SET NULL,
   product_name TEXT NOT NULL,
   product_code TEXT NOT NULL,
   product_image TEXT DEFAULT '',
@@ -141,13 +141,27 @@ ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 ALTER TABLE customers ENABLE ROW LEVEL SECURITY;
 
 -- Regras anônimas para o catálogo online funcionar para todas as clientes
+DROP POLICY IF EXISTS "Permitir leitura pública de configurações" ON store_settings;
 CREATE POLICY "Permitir leitura pública de configurações" ON store_settings FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir leitura pública de produtos" ON products;
 CREATE POLICY "Permitir leitura pública de produtos" ON products FOR SELECT USING (true);
+
+DROP POLICY IF EXISTS "Permitir criação de pedidos por clientes" ON orders;
 CREATE POLICY "Permitir criação de pedidos por clientes" ON orders FOR INSERT WITH CHECK (true);
+
+DROP POLICY IF EXISTS "Permitir inserção de itens de pedido" ON order_items;
 CREATE POLICY "Permitir inserção de itens de pedido" ON order_items FOR INSERT WITH CHECK (true);
 
--- Regras gerais para desenvolvimento / admin
+-- Regras gerais para a loja Senhorita Acessórios
+DROP POLICY IF EXISTS "Acesso total aos produtos para administradores" ON products;
 CREATE POLICY "Acesso total aos produtos para administradores" ON products FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Acesso total aos pedidos para administradores" ON orders;
 CREATE POLICY "Acesso total aos pedidos para administradores" ON orders FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Acesso total aos clientes para administradores" ON customers;
 CREATE POLICY "Acesso total aos clientes para administradores" ON customers FOR ALL USING (true);
+
+DROP POLICY IF EXISTS "Acesso total às configurações para administradores" ON store_settings;
 CREATE POLICY "Acesso total às configurações para administradores" ON store_settings FOR ALL USING (true);

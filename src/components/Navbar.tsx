@@ -1,5 +1,4 @@
-import React from 'react';
-import { ShoppingBag, MessageCircle, Settings, Store, Sparkles } from 'lucide-react';
+import { ShoppingBag, MessageCircle, Settings, Store, Sparkles, Lock } from 'lucide-react';
 import { StoreSettings } from '../types';
 import { cleanPhoneNumber } from '../utils/shopLogic';
 
@@ -112,10 +111,10 @@ export const Navbar: React.FC<NavbarProps> = ({
               onClick={onToggleAdmin}
               aria-label="Acesso Restrito da Lojista"
               title="Acesso da Proprietária (Requer Senha)"
-              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-2 rounded-full text-xs font-medium bg-white hover:bg-[#FDF2F4] text-[#7A5B35] border border-[#E8D4B8] transition-all cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold bg-white/90 hover:bg-[#FFF0F3] text-[#7A5B35] border border-[#E8D4B8] shadow-2xs transition-all cursor-pointer"
             >
-              <Settings className="w-3.5 h-3.5 text-[#C59B63]" />
-              <span className="hidden md:inline">Área da Lojista</span>
+              <Lock className="w-3.5 h-3.5 text-[#C58E3C]" />
+              <span className="hidden sm:inline">Acesso Lojista</span>
             </button>
           )}
         </div>

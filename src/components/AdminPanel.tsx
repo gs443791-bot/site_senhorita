@@ -31,7 +31,24 @@ import {
   RefreshCw,
   Sliders,
   Lock,
+  Eye,
+  EyeOff,
+  Cloud,
+  CloudOff,
+  CheckCircle2,
+  Info,
+  Server,
+  Loader2,
+  HelpCircle,
 } from 'lucide-react';
+import {
+  getSupabaseCredentials,
+  saveSupabaseCredentials,
+  clearSupabaseCredentials,
+  testSupabaseConnection,
+} from '../lib/supabase';
+import { storage } from '../lib/storage';
+import { SUPABASE_SCHEMA_SQL } from '../lib/supabaseSchema';
 
 interface AdminPanelProps {
   products: Product[];
@@ -50,6 +67,7 @@ interface AdminPanelProps {
   onExportData: () => void;
   onImportData: (jsonStr: string) => void;
   isSupabaseConnected: boolean;
+  onSupabaseConfigChange?: () => Promise<void>;
   onLogoutAdmin: () => void;
 }
 
@@ -70,6 +88,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   onExportData,
   onImportData,
   isSupabaseConnected,
+  onSupabaseConfigChange,
   onLogoutAdmin,
 }) => {
   const [activeTab, setActiveTab] = useState<
@@ -87,6 +106,18 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   const [storeForm, setStoreForm] = useState<StoreSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
 
+  // Supabase Integration state
+  const [supabaseCreds, setSupabaseCreds] = useState(() => getSupabaseCredentials());
+  const [supabaseUrlInput, setSupabaseUrlInput] = useState(supabaseCreds.url);
+  const [supabaseKeyInput, setSupabaseKeyInput] = useState(supabaseCreds.anonKey);
+  const [showAnonKey, setShowAnonKey] = useState(false);
+  const [isTestingSupabase, setIsTestingSupabase] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+  const [isSavingSupabase, setIsSavingSupabase] = useState(false);
+  const [isSyncingSupabase, setIsSyncingSupabase] = useState(false);
+  const [syncStatus, setSyncStatus] = useState<{ success: boolean; message: string } | null>(null);
+  const [showSqlViewer, setShowSqlViewer] = useState(false);
+
   // Copied helper
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
@@ -94,6 +125,93 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
     navigator.clipboard.writeText(text);
     setCopiedText(label);
     setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  const handleTestSupabase = async () => {
+    if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+      setTestResult({
+        success: false,
+        message: 'Por favor, informe a URL do projeto e a Chave Anon antes de testar.',
+      });
+      return;
+    }
+    setIsTestingSupabase(true);
+    setTestResult(null);
+    try {
+      const res = await testSupabaseConnection(supabaseUrlInput.trim(), supabaseKeyInput.trim());
+      setTestResult(res);
+    } catch (e: any) {
+      setTestResult({
+        success: false,
+        message: e?.message || 'Erro ao tentar se comunicar com o Supabase.',
+      });
+    } finally {
+      setIsTestingSupabase(false);
+    }
+  };
+
+  const handleSaveAndConnectSupabase = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!supabaseUrlInput.trim() || !supabaseKeyInput.trim()) {
+      setTestResult({
+        success: false,
+        message: 'Informe a URL do Supabase e a Chave Anon.',
+      });
+      return;
+    }
+    setIsSavingSupabase(true);
+    try {
+      saveSupabaseCredentials(supabaseUrlInput.trim(), supabaseKeyInput.trim());
+      setSupabaseCreds({ url: supabaseUrlInput.trim(), anonKey: supabaseKeyInput.trim() });
+      if (onSupabaseConfigChange) {
+        await onSupabaseConfigChange();
+      }
+      setTestResult({
+        success: true,
+        message: 'Conexão configurada e ativada com sucesso! ✨',
+      });
+    } catch (err: any) {
+      setTestResult({
+        success: false,
+        message: `Falha ao salvar conexão: ${err?.message || 'Erro inesperado'}`,
+      });
+    } finally {
+      setIsSavingSupabase(false);
+    }
+  };
+
+  const handleDisconnectSupabase = async () => {
+    clearSupabaseCredentials();
+    setSupabaseCreds({ url: '', anonKey: '' });
+    setSupabaseUrlInput('');
+    setSupabaseKeyInput('');
+    setTestResult(null);
+    setSyncStatus(null);
+    if (onSupabaseConfigChange) {
+      await onSupabaseConfigChange();
+    }
+  };
+
+  const handleSyncToSupabase = async () => {
+    setIsSyncingSupabase(true);
+    setSyncStatus(null);
+    try {
+      const result = await storage.syncLocalToSupabase();
+      setSyncStatus({
+        success: true,
+        message: `Sincronização concluída! ${result.productsCount} produtos e dados da loja enviados para o Supabase! ✨`,
+      });
+      if (onSupabaseConfigChange) {
+        await onSupabaseConfigChange();
+      }
+    } catch (err: any) {
+      setSyncStatus({
+        success: false,
+        message: `Erro na sincronização: ${err?.message || 'Certifique-se de que o script SQL foi executado no Supabase SQL Editor.'}`,
+      });
+    } finally {
+      setIsSyncingSupabase(false);
+    }
   };
 
   // Stock calculations
@@ -1024,147 +1142,323 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
           <div className="space-y-6 max-w-4xl">
             {/* Status overview banner */}
             <div className="bg-white rounded-3xl p-6 border border-[#DFBA73] shadow-gold-sm space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                 <div className="flex items-center gap-3">
-                  <div className="w-10 h-10 rounded-2xl bg-[#FFF5F7] border border-[#F4CCD6] flex items-center justify-center text-[#B5486B]">
-                    <Database className="w-5 h-5" />
+                  <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-[#FFF0F3] to-[#FCE7EC] border border-[#F4CCD6] flex items-center justify-center text-[#B5486B] shrink-0">
+                    <Database className="w-6 h-6" />
                   </div>
                   <div>
-                    <h3 className="font-serif text-lg font-bold text-[#3B1522]">
-                      Pronto para GitHub, Vercel & Supabase
+                    <h3 className="font-serif text-lg font-bold text-[#3B1522] flex items-center gap-2">
+                      <span>Integração com Banco Supabase</span>
+                      <Sparkles className="w-4 h-4 text-[#DFBA73]" />
                     </h3>
                     <p className="text-xs text-[#7A5461]">
-                      Toda a estrutura do projeto foi arquitetada e organizada para você publicar na nuvem!
+                      Armazenamento na nuvem PostgreSQL em tempo real para catálogo, clientes e pedidos.
                     </p>
                   </div>
                 </div>
 
                 <div className="flex items-center gap-2">
                   <span
-                    className={`px-3 py-1 rounded-full text-xs font-bold flex items-center gap-1.5 ${
+                    className={`px-3.5 py-1.5 rounded-full text-xs font-bold flex items-center gap-2 ${
                       isSupabaseConnected
                         ? 'bg-emerald-100 text-emerald-800 border border-emerald-300'
                         : 'bg-amber-100 text-amber-800 border border-amber-300'
                     }`}
                   >
                     <span
-                      className={`w-2 h-2 rounded-full ${
+                      className={`w-2.5 h-2.5 rounded-full animate-pulse ${
                         isSupabaseConnected ? 'bg-emerald-500' : 'bg-amber-500'
                       }`}
                     ></span>
-                    <span>{isSupabaseConnected ? 'Supabase Conectado' : 'Modo Local Ativo'}</span>
+                    <span>
+                      {isSupabaseConnected ? 'Supabase Conectado na Nuvem' : 'Modo Armazenamento Local'}
+                    </span>
                   </span>
                 </div>
               </div>
 
-              {/* 3 Step Deployment Guide */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                {/* 1. GitHub */}
-                <div className="p-4 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-2">
+              {/* Informative description */}
+              <div className="p-3.5 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] text-xs text-[#69424F] leading-relaxed flex items-start gap-2.5">
+                <Info className="w-4 h-4 text-[#B5486B] shrink-0 mt-0.5" />
+                <p>
+                  Tudo pronto e automatizado para você! Você pode conectar sua conta do Supabase colando as credenciais no formulário abaixo, testar a conexão com 1 clique e migrar todas as suas peças existentes para a nuvem automaticamente.
+                </p>
+              </div>
+            </div>
+
+            {/* Direct Interactive Supabase Connection Form */}
+            <div className="bg-white rounded-3xl p-6 border border-[#F4CCD6] shadow-gold-sm space-y-5">
+              <div className="flex items-center justify-between border-b border-[#F4CCD6] pb-3">
+                <div className="flex items-center gap-2">
+                  <Cloud className="w-5 h-5 text-[#8C3A55]" />
+                  <h4 className="font-serif text-base font-bold text-[#3B1522]">
+                    Conectar ao seu Projeto Supabase
+                  </h4>
+                </div>
+
+                {isSupabaseConnected && (
+                  <button
+                    onClick={handleDisconnectSupabase}
+                    className="px-3 py-1.5 rounded-xl text-xs font-semibold text-rose-600 bg-rose-50 hover:bg-rose-100 border border-rose-200 flex items-center gap-1.5 transition-colors"
+                  >
+                    <CloudOff className="w-3.5 h-3.5" />
+                    <span>Desconectar Supabase</span>
+                  </button>
+                )}
+              </div>
+
+              <form onSubmit={handleSaveAndConnectSupabase} className="space-y-4">
+                {/* Project URL */}
+                <div>
+                  <label className="block text-xs font-bold text-[#4A1D2B] mb-1">
+                    URL do Projeto Supabase (Project URL)
+                  </label>
+                  <input
+                    type="url"
+                    required
+                    value={supabaseUrlInput}
+                    onChange={(e) => setSupabaseUrlInput(e.target.value)}
+                    placeholder="https://xyzabcdefghijklm.supabase.co"
+                    className="w-full px-3.5 py-2.5 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                  />
+                  <p className="text-[11px] text-[#7A5461] mt-1">
+                    Encontrado no painel do Supabase em <strong>Project Settings &gt; API &gt; Project URL</strong>.
+                  </p>
+                </div>
+
+                {/* Anon Key */}
+                <div>
+                  <label className="block text-xs font-bold text-[#4A1D2B] mb-1">
+                    Chave Anon Pública (Project API Anon Key)
+                  </label>
+                  <div className="relative">
+                    <input
+                      type={showAnonKey ? 'text' : 'password'}
+                      required
+                      value={supabaseKeyInput}
+                      onChange={(e) => setSupabaseKeyInput(e.target.value)}
+                      placeholder="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+                      className="w-full px-3.5 py-2.5 pr-10 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowAnonKey(!showAnonKey)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 cursor-pointer"
+                    >
+                      {showAnonKey ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                    </button>
+                  </div>
+                  <p className="text-[11px] text-[#7A5461] mt-1">
+                    Chave pública de cliente encontrada em <strong>Project Settings &gt; API &gt; Project API keys (anon public)</strong>.
+                  </p>
+                </div>
+
+                {/* Test Result Feedback */}
+                {testResult && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs flex items-start gap-2.5 border ${
+                      testResult.success
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                        : 'bg-rose-50 text-rose-900 border-rose-200'
+                    }`}
+                  >
+                    {testResult.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <span className="leading-relaxed">{testResult.message}</span>
+                  </div>
+                )}
+
+                {/* Sync Result Feedback */}
+                {syncStatus && (
+                  <div
+                    className={`p-3.5 rounded-2xl text-xs flex items-start gap-2.5 border ${
+                      syncStatus.success
+                        ? 'bg-emerald-50 text-emerald-900 border-emerald-200'
+                        : 'bg-rose-50 text-rose-900 border-rose-200'
+                    }`}
+                  >
+                    {syncStatus.success ? (
+                      <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
+                    ) : (
+                      <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0 mt-0.5" />
+                    )}
+                    <span className="leading-relaxed">{syncStatus.message}</span>
+                  </div>
+                )}
+
+                {/* Actions Buttons */}
+                <div className="pt-2 flex flex-wrap items-center gap-3">
+                  <button
+                    type="button"
+                    onClick={handleTestSupabase}
+                    disabled={isTestingSupabase}
+                    className="px-4 py-2.5 rounded-2xl text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isTestingSupabase ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-[#8C3A55]" />
+                        <span>Testando conexão...</span>
+                      </>
+                    ) : (
+                      <>
+                        <RefreshCw className="w-4 h-4 text-[#8C3A55]" />
+                        <span>Testar Conexão</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    type="submit"
+                    disabled={isSavingSupabase}
+                    className="px-6 py-2.5 rounded-2xl text-xs font-bold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                  >
+                    {isSavingSupabase ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        <span>Salvando...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Salvar e Conectar ao Supabase</span>
+                      </>
+                    )}
+                  </button>
+
+                  {isSupabaseConnected && (
+                    <button
+                      type="button"
+                      onClick={handleSyncToSupabase}
+                      disabled={isSyncingSupabase}
+                      className="px-4 py-2.5 rounded-2xl text-xs font-bold text-[#3B1522] bg-[#FFF5F7] hover:bg-[#FCE7EC] border border-[#DFBA73] flex items-center gap-1.5 cursor-pointer disabled:opacity-50 ml-auto"
+                      title="Envia todas as peças, dados da loja e pedidos locais para o banco do Supabase"
+                    >
+                      {isSyncingSupabase ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin text-[#8C3A55]" />
+                          <span>Sincronizando...</span>
+                        </>
+                      ) : (
+                        <>
+                          <Cloud className="w-4 h-4 text-[#8C3A55]" />
+                          <span>Sincronizar Dados Locais para Supabase (1-Clique)</span>
+                        </>
+                      )}
+                    </button>
+                  )}
+                </div>
+              </form>
+            </div>
+
+            {/* Supabase SQL Schema Box (1-Click Copy) */}
+            <div className="bg-white rounded-3xl p-6 border border-[#F4CCD6] shadow-gold-sm space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div>
+                  <h4 className="font-serif text-base font-bold text-[#3B1522] flex items-center gap-2">
+                    <span>Script SQL do Banco de Dados</span>
+                    <span className="text-[10px] font-sans px-2 py-0.5 rounded-full bg-[#FFF0F3] text-[#8C3A55] border border-[#F4CCD6]">
+                      Tabelas + Baixa de Estoque + RLS
+                    </span>
+                  </h4>
+                  <p className="text-xs text-[#7A5461]">
+                    Crie as tabelas com 1 clique: copie o código, abra o <strong>SQL Editor</strong> do Supabase e clique em <strong>Run</strong>.
+                  </p>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copyToClipboard(SUPABASE_SCHEMA_SQL, 'full_sql')}
+                    className="px-4 py-2 rounded-xl text-xs font-bold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm flex items-center gap-1.5 cursor-pointer"
+                  >
+                    {copiedText === 'full_sql' ? (
+                      <>
+                        <Check className="w-4 h-4" />
+                        <span>Script SQL Copiado!</span>
+                      </>
+                    ) : (
+                      <>
+                        <Copy className="w-4 h-4" />
+                        <span>Copiar Script SQL Completo</span>
+                      </>
+                    )}
+                  </button>
+
+                  <button
+                    onClick={() => setShowSqlViewer(!showSqlViewer)}
+                    className="px-3 py-2 rounded-xl text-xs font-semibold bg-[#FFF9FA] hover:bg-[#FFF0F3] text-[#8C3A55] border border-[#F4CCD6]"
+                  >
+                    {showSqlViewer ? 'Ocultar Código' : 'Ver Código'}
+                  </button>
+                </div>
+              </div>
+
+              {/* Step by step guide */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3 pt-1">
+                <div className="p-3 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-1">
                   <div className="text-xs font-bold text-[#3B1522] flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#DFBA73] text-white flex items-center justify-center text-[10px]">
                       1
                     </span>
-                    <span>Subir no GitHub</span>
+                    <span>Criar Projeto</span>
                   </div>
-                  <p className="text-[11px] text-[#69424F] leading-relaxed">
-                    O repositório já contém todos os arquivos, <code>.gitignore</code>, <code>package.json</code> e configurações limpas para commit e push.
+                  <p className="text-[11px] text-[#7A5461]">
+                    Entre em <code>supabase.com</code> e crie seu projeto gratuito em segundos.
                   </p>
                 </div>
 
-                {/* 2. Supabase */}
-                <div className="p-4 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-2">
+                <div className="p-3 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-1">
                   <div className="text-xs font-bold text-[#3B1522] flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#DFBA73] text-white flex items-center justify-center text-[10px]">
                       2
                     </span>
-                    <span>Criar Banco no Supabase</span>
+                    <span>Executar SQL</span>
                   </div>
-                  <p className="text-[11px] text-[#69424F] leading-relaxed">
-                    Crie um projeto gratuito em <code>supabase.com</code> e cole o código SQL abaixo no <strong>SQL Editor</strong> para criar as tabelas e gatilhos de estoque.
+                  <p className="text-[11px] text-[#7A5461]">
+                    Cole o script copiado no <strong>SQL Editor</strong> do Supabase e clique em <strong>Run</strong>.
                   </p>
                 </div>
 
-                {/* 3. Vercel */}
-                <div className="p-4 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-2">
+                <div className="p-3 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6] space-y-1">
                   <div className="text-xs font-bold text-[#3B1522] flex items-center gap-1.5">
                     <span className="w-5 h-5 rounded-full bg-[#DFBA73] text-white flex items-center justify-center text-[10px]">
                       3
                     </span>
-                    <span>Publicar na Vercel</span>
+                    <span>Conectar Aqui</span>
                   </div>
-                  <p className="text-[11px] text-[#69424F] leading-relaxed">
-                    Importe seu repositório do GitHub na Vercel. O arquivo <code>vercel.json</code> já está pronto para rotas e build ultra-rápido!
+                  <p className="text-[11px] text-[#7A5461]">
+                    Pegue a URL e a Anon Key em <strong>Project Settings &gt; API</strong> e salve no formulário acima.
                   </p>
                 </div>
               </div>
-            </div>
 
-            {/* Supabase SQL Schema Viewer & Copy */}
-            <div className="bg-white rounded-3xl p-6 border border-[#F4CCD6] shadow-xs space-y-3">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h4 className="font-serif text-base font-bold text-[#3B1522]">
-                    Script SQL para o Supabase (Tabelas + Baixa Automática de Estoque)
-                  </h4>
-                  <p className="text-xs text-[#7A5461]">
-                    Copie e execute no menu <strong>SQL Editor</strong> do seu painel do Supabase
-                  </p>
+              {/* Collapsible SQL code preview */}
+              {showSqlViewer && (
+                <div className="p-4 rounded-2xl bg-[#1e1e24] text-neutral-200 font-mono text-[11px] overflow-x-auto max-h-64 leading-relaxed border border-neutral-700">
+                  <pre>{SUPABASE_SCHEMA_SQL}</pre>
                 </div>
-
-                <button
-                  onClick={() =>
-                    copyToClipboard(
-                      `-- Cole no Supabase SQL Editor\n-- Arquivo salvo em /supabase/schema.sql`,
-                      'sql'
-                    )
-                  }
-                  className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] flex items-center gap-1.5"
-                >
-                  {copiedText === 'sql' ? (
-                    <>
-                      <Check className="w-4 h-4 text-emerald-600" />
-                      <span>Copiado!</span>
-                    </>
-                  ) : (
-                    <>
-                      <Copy className="w-4 h-4" />
-                      <span>Copiar Schema SQL</span>
-                    </>
-                  )}
-                </button>
-              </div>
-
-              <div className="p-4 rounded-2xl bg-[#1e1e24] text-neutral-200 font-mono text-[11px] overflow-x-auto max-h-48 leading-relaxed">
-                <pre>{`-- Arquivo completo disponível em /supabase/schema.sql
-CREATE TABLE products (
-  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  code TEXT UNIQUE,
-  name TEXT NOT NULL,
-  category TEXT NOT NULL,
-  price NUMERIC(10,2),
-  stock INTEGER DEFAULT 0,
-  ...
-);
--- Trigger automático para deduzir estoque em cada pedido:
-CREATE TRIGGER trg_deduct_stock AFTER INSERT ON order_items ...`}</pre>
-              </div>
+              )}
             </div>
 
-            {/* Environment Variables Box */}
+            {/* Vercel & Production Environment Variables */}
             <div className="bg-white rounded-3xl p-6 border border-[#F4CCD6] shadow-xs space-y-3">
               <h4 className="font-serif text-base font-bold text-[#3B1522]">
-                Variáveis de Ambiente para a Vercel (.env)
+                Variáveis de Ambiente para Produção / Vercel (.env)
               </h4>
               <p className="text-xs text-[#7A5461]">
-                No painel da Vercel (Project Settings &gt; Environment Variables), adicione:
+                Ao publicar o site na Vercel ou Netlify, adicione estas 2 variáveis em <strong>Environment Variables</strong>:
               </p>
 
               <div className="space-y-2 font-mono text-xs">
                 <div className="p-3 rounded-xl bg-[#FFF9FA] border border-[#F4CCD6] flex items-center justify-between">
                   <div>
                     <span className="text-[#8C3A55] font-bold">VITE_SUPABASE_URL</span> ={' '}
-                    <span className="text-gray-500">https://seu-projeto.supabase.co</span>
+                    <span className="text-gray-500">
+                      {supabaseCreds.url || 'https://seu-projeto.supabase.co'}
+                    </span>
                   </div>
                   <button
                     onClick={() => copyToClipboard('VITE_SUPABASE_URL', 'v_url')}
@@ -1177,7 +1471,9 @@ CREATE TRIGGER trg_deduct_stock AFTER INSERT ON order_items ...`}</pre>
                 <div className="p-3 rounded-xl bg-[#FFF9FA] border border-[#F4CCD6] flex items-center justify-between">
                   <div>
                     <span className="text-[#8C3A55] font-bold">VITE_SUPABASE_ANON_KEY</span> ={' '}
-                    <span className="text-gray-500">sua_chave_anonima_publica</span>
+                    <span className="text-gray-500">
+                      {supabaseCreds.anonKey ? '••••••••••••••••••••' : 'sua_chave_anonima_publica'}
+                    </span>
                   </div>
                   <button
                     onClick={() => copyToClipboard('VITE_SUPABASE_ANON_KEY', 'v_key')}
@@ -1195,13 +1491,13 @@ CREATE TRIGGER trg_deduct_stock AFTER INSERT ON order_items ...`}</pre>
                 Backup e Exportação de Dados (JSON)
               </h4>
               <p className="text-xs text-[#7A5461]">
-                Você pode baixar um backup com todas as suas peças, pedidos e clientes ou restaurar em outro dispositivo.
+                Você pode baixar um backup com todas as suas peças, pedidos e clientes ou restaurar em outro dispositivo a qualquer momento.
               </p>
 
               <div className="flex flex-wrap items-center gap-3 pt-1">
                 <button
                   onClick={onExportData}
-                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] flex items-center gap-1.5"
+                  className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] flex items-center gap-1.5 cursor-pointer"
                 >
                   <Download className="w-4 h-4" />
                   <span>Exportar Dados (Backup JSON)</span>
@@ -1221,6 +1517,7 @@ CREATE TRIGGER trg_deduct_stock AFTER INSERT ON order_items ...`}</pre>
             </div>
           </div>
         )}
+
       </div>
     </div>
   );

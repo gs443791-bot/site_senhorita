@@ -56,6 +56,7 @@ export default function App() {
   const [isProductModalOpen, setIsProductModalOpen] = useState(false);
   const [productToEdit, setProductToEdit] = useState<Product | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [isSupabaseConnected, setIsSupabaseConnected] = useState<boolean>(() => isSupabaseConfigured());
 
   // Sync cart to localStorage
   useEffect(() => {
@@ -313,6 +314,17 @@ export default function App() {
     }
   };
 
+  const handleSupabaseConfigChange = async () => {
+    const connected = isSupabaseConfigured();
+    setIsSupabaseConnected(connected);
+    await refreshData();
+    showToast(
+      connected
+        ? 'Supabase conectado com sucesso! Catálogo sincronizado com a nuvem.'
+        : 'Supabase desconectado. Modo local ativo.'
+    );
+  };
+
   const customerWhatsappContactUrl = `https://wa.me/${cleanPhoneNumber(
     settings.whatsappNumber
   )}?text=${encodeURIComponent(
@@ -364,7 +376,8 @@ export default function App() {
             }}
             onExportData={handleExportData}
             onImportData={handleImportData}
-            isSupabaseConnected={isSupabaseConfigured}
+            isSupabaseConnected={isSupabaseConnected}
+            onSupabaseConfigChange={handleSupabaseConfigChange}
             onLogoutAdmin={handleLogoutAdmin}
           />
         </main>

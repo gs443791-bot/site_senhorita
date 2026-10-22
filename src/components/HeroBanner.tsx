@@ -34,23 +34,12 @@ export const HeroBanner: React.FC<HeroBannerProps> = ({
             </div>
 
             <h1 className="font-serif text-3xl sm:text-5xl lg:text-6xl font-bold text-[#3B1522] tracking-tight leading-[1.18] mb-4">
-              {settings.heroTitle ? (
-                settings.heroTitle.includes(settings.storeName) ? (
-                  <>
-                    {settings.heroTitle.split(settings.storeName)[0]}
-                    <span className="text-gold-gradient">{settings.storeName}</span>
-                    {settings.heroTitle.split(settings.storeName)[1]}
-                  </>
-                ) : (
-                  <span>{settings.heroTitle}</span>
-                )
-              ) : (
-                <>
-                  Realce sua beleza com a{' '}
-                  <span className="text-gold-gradient">{settings.storeName}</span>
-                </>
-              )}
+              Realce o seu brilho <br className="hidden sm:inline" />
+              <span className="text-transparent bg-clip-text bg-gradient-to-r from-[#9A621E] via-[#C58E3C] to-[#824E12]">
+                com a Senhorita Acessórios
+              </span>
             </h1>
+
 
             <p className="text-sm sm:text-base text-[#6E4250] max-w-2xl mx-auto lg:mx-0 leading-relaxed mb-6 font-normal">
               {settings.aboutText ||

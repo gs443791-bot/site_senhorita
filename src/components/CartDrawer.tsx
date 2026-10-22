@@ -6,6 +6,7 @@ import {
   formatBRL,
   generateCartWhatsAppUrl,
   generateOrderNumber,
+  generateUUID,
 } from '../utils/shopLogic';
 import {
   X,
@@ -70,7 +71,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
     setIsSubmitting(true);
     try {
       const newOrder: Order = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `ord_${Date.now()}`,
+        id: generateUUID(),
         orderNumber: generateOrderNumber(),
         createdAt: new Date().toISOString(),
         customerName: customerName.trim(),

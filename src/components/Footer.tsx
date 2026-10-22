@@ -1,7 +1,7 @@
 import React from 'react';
 import { CATEGORIES, ProductCategory, StoreSettings } from '../types';
 import { cleanPhoneNumber } from '../utils/shopLogic';
-import { MessageCircle, Instagram, ShieldCheck, Heart, Sparkles, Settings } from 'lucide-react';
+import { MessageCircle, Instagram, ShieldCheck, Heart, Sparkles, Settings, Lock } from 'lucide-react';
 
 interface FooterProps {
   settings: StoreSettings;
@@ -138,7 +138,7 @@ export const Footer: React.FC<FooterProps> = ({
               onClick={onOpenAdmin}
               className="text-[#9D723B] hover:text-[#4A1D2B] hover:underline flex items-center gap-1.5 text-[11px] font-medium transition-colors"
             >
-              <Settings className="w-3.5 h-3.5 text-[#C59B63]" />
+              <Lock className="w-3.5 h-3.5 text-[#C59B63]" />
               <span>Área da Lojista (Acesso com Senha)</span>
             </button>
           </div>

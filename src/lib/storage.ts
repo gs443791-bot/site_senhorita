@@ -1,6 +1,6 @@
 import { Customer, Order, OrderStatus, Product, ProductCategory, StoreSettings } from '../types';
-import { applyOrderStockDeduction, restoreOrderStock } from '../utils/shopLogic';
-import { isSupabaseConfigured, supabase } from './supabase';
+import { applyOrderStockDeduction, restoreOrderStock, generateUUID } from '../utils/shopLogic';
+import { getSupabaseClient } from './supabase';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'senhorita_products_v1',
@@ -22,7 +22,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   logoUrl: '/assets/aistudio/WhatsApp_Image_2026-09-11_at_10.11.39__1__6db93c46.jpeg',
   aboutText:
     'A Senhorita Acessórios nasceu para trazer brilho, delicadeza e sofisticação para os seus momentos especiais. Nossas peças combinam acabamento refinado com design atemporal.',
-  heroTitle: 'Realce sua beleza com a Senhorita Acessórios',
+  heroTitle: 'Realce o seu brilho com a Senhorita Acessórios',
   adminPin: '1234',
 };
 
@@ -81,7 +81,8 @@ export const SAMPLE_PRODUCTS: Omit<Product, 'id' | 'createdAt'>[] = [
 class StorageService {
   // Products Management
   async getProducts(): Promise<Product[]> {
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         const { data, error } = await supabase
           .from('products')
@@ -127,7 +128,7 @@ class StorageService {
     const isNew = !product.id;
     const now = new Date().toISOString();
     const finalProduct: Product = {
-      id: product.id || (typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `prod_${Date.now()}`),
+      id: product.id || generateUUID(),
       code: product.code || `SR-${Math.floor(100 + Math.random() * 900)}`,
       name: product.name,
       category: product.category,
@@ -142,7 +143,8 @@ class StorageService {
       updatedAt: now,
     };
 
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         await supabase.from('products').upsert({
           id: finalProduct.id,
@@ -177,7 +179,8 @@ class StorageService {
   }
 
   async deleteProduct(id: string): Promise<void> {
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         await supabase.from('products').delete().eq('id', id);
       } catch (err) {
@@ -197,7 +200,8 @@ class StorageService {
     target.stock = Math.max(0, newStock);
     target.updatedAt = new Date().toISOString();
 
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         await supabase
           .from('products')
@@ -213,7 +217,8 @@ class StorageService {
 
   // Orders Management with AUTOMATIC STOCK REDUCTION
   async getOrders(): Promise<Order[]> {
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         const { data, error } = await supabase
           .from('orders')
@@ -276,7 +281,8 @@ class StorageService {
     await this.recordCustomerFromOrder(order);
 
     // 4. Sync with Supabase if configured
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         const { data: orderData } = await supabase
           .from('orders')
@@ -336,7 +342,8 @@ class StorageService {
 
     localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(orders));
 
-    if (isSupabaseConfigured && supabase) {
+    const supabase = getSupabaseClient();
+    if (supabase) {
       try {
         await supabase
           .from('orders')
@@ -373,7 +380,7 @@ class StorageService {
       existing.lastOrderDate = order.createdAt;
     } else {
       const newCustomer: Customer = {
-        id: typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `cust_${Date.now()}`,
+        id: generateUUID(),
         name: order.customerName,
         phone: order.customerPhone,
         address: order.customerAddress,
@@ -389,6 +396,35 @@ class StorageService {
 
   // Store Settings
   async getSettings(): Promise<StoreSettings> {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { data, error } = await supabase
+          .from('store_settings')
+          .select('*')
+          .eq('id', 'default')
+          .single();
+
+        if (!error && data) {
+          return {
+            storeName: data.store_name || DEFAULT_SETTINGS.storeName,
+            tagline: data.tagline || '',
+            whatsappNumber: data.whatsapp_number || DEFAULT_SETTINGS.whatsappNumber,
+            instagramHandle: data.instagram_handle || DEFAULT_SETTINGS.instagramHandle,
+            pixKey: data.pix_key || '',
+            pixKeyType: data.pix_key_type || 'Telefone',
+            pixBeneficiary: data.pix_beneficiary || '',
+            bannerNotice: data.banner_notice || DEFAULT_SETTINGS.bannerNotice,
+            aboutText: data.about_text || DEFAULT_SETTINGS.aboutText,
+            adminPin: DEFAULT_SETTINGS.adminPin,
+            heroTitle: DEFAULT_SETTINGS.heroTitle,
+          };
+        }
+      } catch (err) {
+        console.warn('Supabase getSettings error:', err);
+      }
+    }
+
     const local = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!local) {
       return DEFAULT_SETTINGS;
@@ -398,6 +434,9 @@ class StorageService {
       if (parsed.tagline === 'Semijoias & Bijuterias Finas') {
         parsed.tagline = '';
       }
+      if (parsed.heroTitle === 'Realce sua beleza com a Senhorita Acessórios') {
+        parsed.heroTitle = 'Realce o seu brilho com a Senhorita Acessórios';
+      }
       return { ...DEFAULT_SETTINGS, ...parsed };
     } catch {
       return DEFAULT_SETTINGS;
@@ -406,7 +445,76 @@ class StorageService {
 
   async saveSettings(settings: StoreSettings): Promise<StoreSettings> {
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('store_settings').upsert({
+          id: 'default',
+          store_name: settings.storeName,
+          tagline: settings.tagline,
+          whatsapp_number: settings.whatsappNumber,
+          instagram_handle: settings.instagramHandle,
+          pix_key: settings.pixKey,
+          pix_key_type: settings.pixKeyType,
+          pix_beneficiary: settings.pixBeneficiary,
+          banner_notice: settings.bannerNotice,
+          about_text: settings.aboutText,
+          updated_at: new Date().toISOString(),
+        });
+      } catch (err) {
+        console.warn('Supabase saveSettings error:', err);
+      }
+    }
+
     return settings;
+  }
+
+  // Sync all local data to Supabase with 1-click
+  async syncLocalToSupabase(): Promise<{ productsCount: number; ordersCount: number }> {
+    const supabase = getSupabaseClient();
+    if (!supabase) {
+      throw new Error('Supabase não está conectado.');
+    }
+
+    // 1. Sync products
+    const localProducts = await this.getProducts();
+    if (localProducts.length > 0) {
+      const formatted = localProducts.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        category: p.category,
+        price: p.price,
+        promotional_price: p.promotionalPrice,
+        stock: p.stock,
+        description: p.description,
+        materials: p.materials,
+        images: p.images,
+        featured: p.featured,
+        updated_at: p.updatedAt || new Date().toISOString(),
+      }));
+      await supabase.from('products').upsert(formatted);
+    }
+
+    // 2. Sync settings
+    const settings = await this.getSettings();
+    await supabase.from('store_settings').upsert({
+      id: 'default',
+      store_name: settings.storeName,
+      tagline: settings.tagline,
+      whatsapp_number: settings.whatsappNumber,
+      instagram_handle: settings.instagramHandle,
+      pix_key: settings.pixKey,
+      pix_key_type: settings.pixKeyType,
+      pix_beneficiary: settings.pixBeneficiary,
+      banner_notice: settings.bannerNotice,
+      about_text: settings.aboutText,
+      updated_at: new Date().toISOString(),
+    });
+
+    const localOrders = await this.getOrders();
+    return { productsCount: localProducts.length, ordersCount: localOrders.length };
   }
 
   // Seed sample products (voluntary action inside Admin for testing)
