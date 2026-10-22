@@ -105,6 +105,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Settings form state
   const [storeForm, setStoreForm] = useState<StoreSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
+  const [showAdminPinInPanel, setShowAdminPinInPanel] = useState(false);
 
   useEffect(() => {
     setStoreForm({ ...settings });
@@ -250,9 +251,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
       alert('Por favor, informe uma senha válida para a lojista.');
       return;
     }
-    await onSaveSettings({ ...storeForm, adminPin: storeForm.adminPin.trim() });
+    const cleanPin = storeForm.adminPin.trim();
+    localStorage.setItem('senhorita_admin_pin_v1', cleanPin);
+    await onSaveSettings({ ...storeForm, adminPin: cleanPin });
     setSettingsSaved(true);
-    setTimeout(() => setSettingsSaved(false), 2500);
   };
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -1109,14 +1111,23 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   <Sparkles className="w-4 h-4 text-[#C59B63]" />
                   <span>Senha de Acesso da Administradora (Proteção contra clientes)</span>
                 </label>
-                <input
-                  type="text"
-                  required
-                  value={storeForm.adminPin ?? ''}
-                  onChange={(e) => setStoreForm({ ...storeForm, adminPin: e.target.value })}
-                  placeholder="Ex: sua senha pessoal"
-                  className="w-full sm:w-64 px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
-                />
+                <div className="relative w-full sm:w-72">
+                  <input
+                    type={showAdminPinInPanel ? 'text' : 'password'}
+                    required
+                    value={storeForm.adminPin ?? ''}
+                    onChange={(e) => setStoreForm({ ...storeForm, adminPin: e.target.value })}
+                    placeholder="Digite a senha..."
+                    className="w-full pl-3 pr-9 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPinInPanel(!showAdminPinInPanel)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-[#A87E8C] hover:text-[#4A1D2B] cursor-pointer"
+                  >
+                    {showAdminPinInPanel ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
                 <p className="text-[11px] text-[#7A5461]">
                   Esta senha impede que clientes acessem o painel administrativo ou cadastrem produtos. Apenas quem souber esta senha pode entrar no painel.
                 </p>

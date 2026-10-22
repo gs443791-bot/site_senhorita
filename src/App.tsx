@@ -558,12 +558,15 @@ export default function App() {
         />
       )}
 
-      {/* Admin Login Modal (Restricts access from customers) */}
       <AdminLoginModal
         isOpen={isLoginModalOpen}
         onClose={() => setIsLoginModalOpen(false)}
         onSuccess={handleLoginSuccess}
         correctPin={settings.adminPin || '1234'}
+        onPasswordChanged={(newPin) => {
+          setSettings((prev) => ({ ...prev, adminPin: newPin }));
+          showToast('Nova senha de administradora ativada com sucesso! ✨');
+        }}
       />
 
       {/* Global Footer */}

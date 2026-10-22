@@ -24,7 +24,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   aboutText:
     'A Senhorita Acessórios nasceu para trazer brilho, delicadeza e sofisticação para os seus momentos especiais. Nossas peças combinam acabamento refinado com design atemporal.',
   heroTitle: 'Realce o seu brilho com a Senhorita Acessórios',
-  adminPin: '1234',
+  adminPin: '@Gaeldavi22',
 };
 
 // Curated sample products available if user optionally clicks "Carregar Amostras de Teste"
@@ -397,7 +397,11 @@ class StorageService {
 
   // Store Settings
   async getSettings(): Promise<StoreSettings> {
-    const savedPin = (localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || '').trim();
+    let savedPin = (localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || '').trim();
+    if (!savedPin || savedPin === '1234') {
+      savedPin = '@Gaeldavi22';
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, '@Gaeldavi22');
+    }
 
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -419,7 +423,7 @@ class StorageService {
             pixBeneficiary: data.pix_beneficiary || '',
             bannerNotice: data.banner_notice || DEFAULT_SETTINGS.bannerNotice,
             aboutText: data.about_text || DEFAULT_SETTINGS.aboutText,
-            adminPin: savedPin || DEFAULT_SETTINGS.adminPin,
+            adminPin: savedPin,
             heroTitle: DEFAULT_SETTINGS.heroTitle,
           };
         }
@@ -430,7 +434,7 @@ class StorageService {
 
     const local = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!local) {
-      return { ...DEFAULT_SETTINGS, adminPin: savedPin || DEFAULT_SETTINGS.adminPin };
+      return { ...DEFAULT_SETTINGS, adminPin: savedPin };
     }
     try {
       const parsed = JSON.parse(local);
@@ -447,23 +451,24 @@ class StorageService {
       ) {
         parsed.instagramHandle = '@acessorios.senhoritas';
       }
-      const effectivePin = savedPin || parsed.adminPin || DEFAULT_SETTINGS.adminPin;
+      const effectivePin = (savedPin && savedPin !== '1234') ? savedPin : '@Gaeldavi22';
       const merged = { ...DEFAULT_SETTINGS, ...parsed, adminPin: effectivePin };
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
       return merged;
     } catch {
-      return { ...DEFAULT_SETTINGS, adminPin: savedPin || DEFAULT_SETTINGS.adminPin };
+      return { ...DEFAULT_SETTINGS, adminPin: savedPin };
     }
   }
 
   async saveSettings(settings: StoreSettings): Promise<StoreSettings> {
-    const cleanPin = (settings.adminPin || '').trim();
-    if (cleanPin) {
-      localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, cleanPin);
+    let cleanPin = (settings.adminPin || '').trim();
+    if (!cleanPin || cleanPin === '1234') {
+      cleanPin = '@Gaeldavi22';
     }
+    localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, cleanPin);
     const finalSettings = {
       ...settings,
-      adminPin: cleanPin || localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || DEFAULT_SETTINGS.adminPin,
+      adminPin: cleanPin,
     };
     localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(finalSettings));
 
