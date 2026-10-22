@@ -13,7 +13,7 @@ export const DEFAULT_SETTINGS: StoreSettings = {
   storeName: 'Senhorita Acessórios',
   tagline: '',
   whatsappNumber: '5511999999999',
-  instagramHandle: '@senhoritaacessorios',
+  instagramHandle: '@acessorios.senhoritas',
   pixKey: 'contato@senhoritaacessorios.com.br',
   pixKeyType: 'E-mail',
   pixBeneficiary: 'Senhorita Acessórios',
@@ -437,7 +437,16 @@ class StorageService {
       if (parsed.heroTitle === 'Realce sua beleza com a Senhorita Acessórios') {
         parsed.heroTitle = 'Realce o seu brilho com a Senhorita Acessórios';
       }
-      return { ...DEFAULT_SETTINGS, ...parsed };
+      if (
+        !parsed.instagramHandle ||
+        parsed.instagramHandle.includes('senhoritaacessorios') ||
+        parsed.instagramHandle === '@senhoritaacessorios'
+      ) {
+        parsed.instagramHandle = '@acessorios.senhoritas';
+      }
+      const merged = { ...DEFAULT_SETTINGS, ...parsed };
+      localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
+      return merged;
     } catch {
       return DEFAULT_SETTINGS;
     }

@@ -81,6 +81,12 @@ export default function App() {
       setProducts(loadedProducts);
       setOrders(loadedOrders);
       setCustomers(loadedCustomers);
+      if (
+        !loadedSettings.instagramHandle ||
+        loadedSettings.instagramHandle.includes('senhoritaacessorios')
+      ) {
+        loadedSettings.instagramHandle = '@acessorios.senhoritas';
+      }
       setSettings(loadedSettings);
     } catch (err) {
       console.error('Error refreshing data:', err);

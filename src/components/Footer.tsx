@@ -64,10 +64,11 @@ export const Footer: React.FC<FooterProps> = ({
                   href={`https://instagram.com/${settings.instagramHandle.replace('@', '')}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-9 h-9 rounded-full bg-[#E1306C]/10 text-[#E1306C] hover:bg-[#E1306C] hover:text-white border border-[#E1306C]/30 flex items-center justify-center transition-all"
-                  title="Instagram"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 rounded-full bg-[#E1306C]/10 text-[#C13584] hover:bg-[#E1306C] hover:text-white border border-[#E1306C]/30 text-xs font-semibold transition-all shadow-2xs group"
+                  title="Siga @acessorios.senhoritas no Instagram"
                 >
-                  <Instagram className="w-4 h-4" />
+                  <Instagram className="w-4 h-4 text-[#E1306C] group-hover:text-white transition-colors" />
+                  <span>{settings.instagramHandle}</span>
                 </a>
               )}
             </div>

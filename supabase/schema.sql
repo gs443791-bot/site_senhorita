@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS store_settings (
   store_name TEXT NOT NULL DEFAULT 'Senhorita Acessórios',
   tagline TEXT DEFAULT '',
   whatsapp_number TEXT NOT NULL DEFAULT '5511999999999',
-  instagram_handle TEXT DEFAULT '@senhoritaacessorios',
+  instagram_handle TEXT DEFAULT '@acessorios.senhoritas',
   pix_key TEXT DEFAULT '',
   pix_key_type TEXT DEFAULT 'Telefone',
   pix_beneficiary TEXT DEFAULT 'Senhorita Acessórios',

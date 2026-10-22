@@ -1,4 +1,4 @@
-import { ShoppingBag, MessageCircle, Settings, Store, Sparkles, Lock } from 'lucide-react';
+import { ShoppingBag, MessageCircle, Settings, Store, Sparkles, Lock, Instagram } from 'lucide-react';
 import { StoreSettings } from '../types';
 import { cleanPhoneNumber } from '../utils/shopLogic';
 
@@ -80,6 +80,20 @@ export const Navbar: React.FC<NavbarProps> = ({
             <MessageCircle className="w-4 h-4 text-[#25D366]" />
             <span>Falar no WhatsApp</span>
           </a>
+
+          {/* Instagram link */}
+          {settings.instagramHandle && (
+            <a
+              href={`https://instagram.com/${settings.instagramHandle.replace('@', '')}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="hidden lg:inline-flex items-center gap-1.5 px-3 py-2 rounded-full text-xs font-semibold bg-[#E1306C]/10 text-[#C13584] hover:bg-[#E1306C]/20 border border-[#E1306C]/20 transition-all hover:shadow-xs"
+              title="Acessar Instagram @acessorios.senhoritas"
+            >
+              <Instagram className="w-3.5 h-3.5 text-[#E1306C]" />
+              <span>{settings.instagramHandle}</span>
+            </a>
+          )}
 
           {/* Cart Button */}
           <button
