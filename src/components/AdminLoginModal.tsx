@@ -20,11 +20,15 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
 
   if (!isOpen) return null;
 
+  const effectiveCorrectPin = (
+    localStorage.getItem('senhorita_admin_pin_v1') ||
+    correctPin ||
+    '1234'
+  ).trim();
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const effectiveCorrectPin = correctPin || '1234';
-
-    if (pin === effectiveCorrectPin) {
+    if (pin.trim() === effectiveCorrectPin) {
       setErrorMessage('');
       setPin('');
       onSuccess();
@@ -100,9 +104,13 @@ export const AdminLoginModal: React.FC<AdminLoginModalProps> = ({
                 <ShieldAlert className="w-3.5 h-3.5 shrink-0 mt-0.5" />
                 <span>{errorMessage}</span>
               </div>
-            ) : (
+            ) : effectiveCorrectPin === '1234' ? (
               <p className="mt-1.5 text-[10px] text-[#8C5D6C]">
                 Senha padrão inicial: <strong className="font-mono text-[#3B1522]">1234</strong> (você pode alterá-la nas configurações).
+              </p>
+            ) : (
+              <p className="mt-1.5 text-[10px] text-[#8C5D6C]">
+                Digite a nova senha de administradora configurada por você.
               </p>
             )}
           </div>

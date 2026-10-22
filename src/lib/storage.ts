@@ -7,6 +7,7 @@ const STORAGE_KEYS = {
   ORDERS: 'senhorita_orders_v1',
   CUSTOMERS: 'senhorita_customers_v1',
   SETTINGS: 'senhorita_settings_v1',
+  ADMIN_PIN: 'senhorita_admin_pin_v1',
 };
 
 export const DEFAULT_SETTINGS: StoreSettings = {
@@ -396,6 +397,8 @@ class StorageService {
 
   // Store Settings
   async getSettings(): Promise<StoreSettings> {
+    const savedPin = (localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || '').trim();
+
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
@@ -416,7 +419,7 @@ class StorageService {
             pixBeneficiary: data.pix_beneficiary || '',
             bannerNotice: data.banner_notice || DEFAULT_SETTINGS.bannerNotice,
             aboutText: data.about_text || DEFAULT_SETTINGS.aboutText,
-            adminPin: DEFAULT_SETTINGS.adminPin,
+            adminPin: savedPin || DEFAULT_SETTINGS.adminPin,
             heroTitle: DEFAULT_SETTINGS.heroTitle,
           };
         }
@@ -427,7 +430,7 @@ class StorageService {
 
     const local = localStorage.getItem(STORAGE_KEYS.SETTINGS);
     if (!local) {
-      return DEFAULT_SETTINGS;
+      return { ...DEFAULT_SETTINGS, adminPin: savedPin || DEFAULT_SETTINGS.adminPin };
     }
     try {
       const parsed = JSON.parse(local);
@@ -444,31 +447,40 @@ class StorageService {
       ) {
         parsed.instagramHandle = '@acessorios.senhoritas';
       }
-      const merged = { ...DEFAULT_SETTINGS, ...parsed };
+      const effectivePin = savedPin || parsed.adminPin || DEFAULT_SETTINGS.adminPin;
+      const merged = { ...DEFAULT_SETTINGS, ...parsed, adminPin: effectivePin };
       localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(merged));
       return merged;
     } catch {
-      return DEFAULT_SETTINGS;
+      return { ...DEFAULT_SETTINGS, adminPin: savedPin || DEFAULT_SETTINGS.adminPin };
     }
   }
 
   async saveSettings(settings: StoreSettings): Promise<StoreSettings> {
-    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(settings));
+    const cleanPin = (settings.adminPin || '').trim();
+    if (cleanPin) {
+      localStorage.setItem(STORAGE_KEYS.ADMIN_PIN, cleanPin);
+    }
+    const finalSettings = {
+      ...settings,
+      adminPin: cleanPin || localStorage.getItem(STORAGE_KEYS.ADMIN_PIN) || DEFAULT_SETTINGS.adminPin,
+    };
+    localStorage.setItem(STORAGE_KEYS.SETTINGS, JSON.stringify(finalSettings));
 
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
         await supabase.from('store_settings').upsert({
           id: 'default',
-          store_name: settings.storeName,
-          tagline: settings.tagline,
-          whatsapp_number: settings.whatsappNumber,
-          instagram_handle: settings.instagramHandle,
-          pix_key: settings.pixKey,
-          pix_key_type: settings.pixKeyType,
-          pix_beneficiary: settings.pixBeneficiary,
-          banner_notice: settings.bannerNotice,
-          about_text: settings.aboutText,
+          store_name: finalSettings.storeName,
+          tagline: finalSettings.tagline,
+          whatsapp_number: finalSettings.whatsappNumber,
+          instagram_handle: finalSettings.instagramHandle,
+          pix_key: finalSettings.pixKey,
+          pix_key_type: finalSettings.pixKeyType,
+          pix_beneficiary: finalSettings.pixBeneficiary,
+          banner_notice: finalSettings.bannerNotice,
+          about_text: finalSettings.aboutText,
           updated_at: new Date().toISOString(),
         });
       } catch (err) {
@@ -476,8 +488,9 @@ class StorageService {
       }
     }
 
-    return settings;
+    return finalSettings;
   }
+
 
   // Sync all local data to Supabase with 1-click
   async syncLocalToSupabase(): Promise<{ productsCount: number; ordersCount: number }> {

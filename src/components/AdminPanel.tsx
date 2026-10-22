@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   CATEGORIES,
   Customer,
@@ -105,6 +105,10 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Settings form state
   const [storeForm, setStoreForm] = useState<StoreSettings>({ ...settings });
   const [settingsSaved, setSettingsSaved] = useState(false);
+
+  useEffect(() => {
+    setStoreForm({ ...settings });
+  }, [settings]);
 
   // Supabase Integration state
   const [supabaseCreds, setSupabaseCreds] = useState(() => getSupabaseCredentials());
@@ -242,7 +246,11 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
 
   const handleSettingsSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await onSaveSettings(storeForm);
+    if (!storeForm.adminPin?.trim()) {
+      alert('Por favor, informe uma senha válida para a lojista.');
+      return;
+    }
+    await onSaveSettings({ ...storeForm, adminPin: storeForm.adminPin.trim() });
     setSettingsSaved(true);
     setTimeout(() => setSettingsSaved(false), 2500);
   };
@@ -1104,9 +1112,9 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 <input
                   type="text"
                   required
-                  value={storeForm.adminPin || '1234'}
+                  value={storeForm.adminPin ?? ''}
                   onChange={(e) => setStoreForm({ ...storeForm, adminPin: e.target.value })}
-                  placeholder="Ex: 1234 ou sua senha pessoal"
+                  placeholder="Ex: sua senha pessoal"
                   className="w-full sm:w-64 px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-white font-mono focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
                 />
                 <p className="text-[11px] text-[#7A5461]">

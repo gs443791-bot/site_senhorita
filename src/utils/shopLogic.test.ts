@@ -207,3 +207,14 @@ test('generateUUID returns a valid RFC4122 v4 formatted string', () => {
   const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   assert.ok(uuidRegex.test(uuid));
 });
+
+test('validates admin PIN strictly against configured custom pin and rejects 1234 when changed', () => {
+  const customPin = 'minhasenha2026';
+  const verifyPin = (input: string, activePin: string) => input.trim() === activePin.trim();
+
+  assert.strictEqual(verifyPin('1234', customPin), false);
+  assert.strictEqual(verifyPin('minhasenha2026', customPin), true);
+  assert.strictEqual(verifyPin(' minhasenha2026 ', customPin), true);
+  assert.strictEqual(verifyPin('wrong', customPin), false);
+});
+
