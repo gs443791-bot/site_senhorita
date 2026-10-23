@@ -39,7 +39,6 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
     : ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80'];
 
   const isOutOfStock = product.stock <= 0;
-  const isLowStock = product.stock > 0 && product.stock <= 3;
   const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
   const activePrice = hasPromo ? product.promotionalPrice! : product.price;
 
@@ -172,15 +171,10 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
                     <span className="w-2 h-2 rounded-full bg-neutral-500"></span>
                     <span>Peça temporariamente esgotada</span>
                   </div>
-                ) : isLowStock ? (
-                  <div className="p-2 rounded-lg bg-amber-50 text-amber-800 border border-amber-200 text-xs font-semibold flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-amber-500 animate-ping"></span>
-                    <span>Atenção: Apenas {product.stock} unidades restantes no estoque!</span>
-                  </div>
                 ) : (
                   <div className="p-2 rounded-lg bg-emerald-50 text-emerald-800 border border-emerald-200 text-xs font-semibold flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-emerald-500"></span>
-                    <span>{product.stock} unidades disponíveis a pronta entrega</span>
+                    <span>Disponível a pronta entrega</span>
                   </div>
                 )}
               </div>

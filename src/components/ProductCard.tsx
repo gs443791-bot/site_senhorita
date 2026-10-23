@@ -18,7 +18,6 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   onOpenDetails,
 }) => {
   const isOutOfStock = product.stock <= 0;
-  const isLowStock = product.stock > 0 && product.stock <= 3;
   const hasPromo = product.promotionalPrice && product.promotionalPrice < product.price;
   const discountPercent = hasPromo
     ? Math.round(((product.price - (product.promotionalPrice || 0)) / product.price) * 100)
@@ -64,22 +63,14 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           )}
         </div>
 
-        {/* Stock status indicator badge */}
-        <div className="absolute top-2.5 right-2.5">
-          {isOutOfStock ? (
+        {/* Stock status indicator badge (only shows when out of stock) */}
+        {isOutOfStock && (
+          <div className="absolute top-2.5 right-2.5">
             <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-neutral-800 text-white shadow-xs">
               Esgotado
             </span>
-          ) : isLowStock ? (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-600 text-white shadow-xs animate-pulse">
-              Restam {product.stock} un!
-            </span>
-          ) : (
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-emerald-600/90 text-white shadow-xs">
-              {product.stock} em estoque
-            </span>
-          )}
-        </div>
+          </div>
+        )}
 
         {/* Quick view button overlay */}
         <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
