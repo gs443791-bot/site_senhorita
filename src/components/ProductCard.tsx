@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Product, StoreSettings } from '../types';
 import { formatBRL, generateSingleProductWhatsAppUrl } from '../utils/shopLogic';
-import { ShoppingBag, MessageCircle, Eye, AlertCircle } from 'lucide-react';
+import { ShoppingBag, MessageCircle, Eye, AlertCircle, ZoomIn } from 'lucide-react';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface ProductCardProps {
   product: Product;
@@ -27,6 +28,8 @@ export const ProductCard: React.FC<ProductCardProps> = ({
 
   const whatsappUrl = generateSingleProductWhatsAppUrl(product, settings);
 
+  const [isCardLightboxOpen, setIsCardLightboxOpen] = useState(false);
+
   const mainImage =
     product.images && product.images.length > 0
       ? product.images[0]
@@ -35,7 +38,11 @@ export const ProductCard: React.FC<ProductCardProps> = ({
   return (
     <div className="group bg-white rounded-2xl overflow-hidden border border-[#F4D1DB]/70 hover:border-[#DFBA73] transition-all duration-300 hover:shadow-gold-md flex flex-col h-full">
       {/* Image container */}
-      <div className="relative aspect-square w-full overflow-hidden bg-[#FFF5F7]">
+      <div
+        className="relative aspect-square w-full overflow-hidden bg-[#FFF5F7] cursor-pointer"
+        onClick={() => setIsCardLightboxOpen(true)}
+        title="Clique na foto para ampliar"
+      >
         <img
           src={mainImage}
           alt={product.name}
@@ -75,16 +82,34 @@ export const ProductCard: React.FC<ProductCardProps> = ({
         </div>
 
         {/* Quick view button overlay */}
-        <button
-          onClick={() => onOpenDetails(product)}
-          className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
-          aria-label={`Ver detalhes de ${product.name}`}
-        >
-          <span className="bg-white/95 text-[#4A1D2B] text-xs font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform">
+        <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2 pointer-events-none">
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              setIsCardLightboxOpen(true);
+            }}
+            className="pointer-events-auto bg-black/65 hover:bg-black/85 text-white text-xs font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform cursor-pointer backdrop-blur-xs hover:scale-105"
+            aria-label={`Ampliar foto de ${product.name}`}
+            title="Ampliar Foto"
+          >
+            <ZoomIn className="w-3.5 h-3.5 text-[#DFBA73]" />
+            <span>Ampliar</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpenDetails(product);
+            }}
+            className="pointer-events-auto bg-white/95 hover:bg-white text-[#4A1D2B] text-xs font-semibold px-3 py-1.5 rounded-full shadow-md flex items-center gap-1.5 transform translate-y-2 group-hover:translate-y-0 transition-transform cursor-pointer hover:scale-105"
+            aria-label={`Ver detalhes de ${product.name}`}
+          >
             <Eye className="w-3.5 h-3.5 text-[#B5486B]" />
-            Ver Peça
-          </span>
-        </button>
+            <span>Detalhes</span>
+          </button>
+        </div>
       </div>
 
       {/* Content section */}
@@ -151,6 +176,18 @@ export const ProductCard: React.FC<ProductCardProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Lightbox for enlarged photo view */}
+      <ImageLightboxModal
+        isOpen={isCardLightboxOpen}
+        onClose={() => setIsCardLightboxOpen(false)}
+        images={product.images && product.images.length > 0 ? product.images : [mainImage]}
+        initialIndex={0}
+        productTitle={product.name}
+        productCode={product.code}
+        whatsappUrl={whatsappUrl}
+      />
     </div>
   );
 };
+

@@ -6,6 +6,7 @@ import {
   calculateCartTotals,
   generateSingleProductWhatsAppUrl,
   generateCartWhatsAppUrl,
+  generateDirectCartWhatsAppUrl,
   applyOrderStockDeduction,
   restoreOrderStock,
   generateOrderNumber,
@@ -209,12 +210,49 @@ test('generateUUID returns a valid RFC4122 v4 formatted string', () => {
 });
 
 test('validates admin PIN strictly against configured custom pin and rejects 1234 when changed', () => {
-  const customPin = 'minhasenha2026';
+  const customPin = '@Gaeldavi22';
   const verifyPin = (input: string, activePin: string) => input.trim() === activePin.trim();
 
   assert.strictEqual(verifyPin('1234', customPin), false);
-  assert.strictEqual(verifyPin('minhasenha2026', customPin), true);
-  assert.strictEqual(verifyPin(' minhasenha2026 ', customPin), true);
+  assert.strictEqual(verifyPin('@Gaeldavi22', customPin), true);
+  assert.strictEqual(verifyPin(' @Gaeldavi22 ', customPin), true);
   assert.strictEqual(verifyPin('wrong', customPin), false);
 });
+
+test('generateDirectCartWhatsAppUrl creates direct WhatsApp URL with items and no on-site checkout', () => {
+  const settings: StoreSettings = {
+    storeName: 'Senhorita Acessórios',
+    tagline: '',
+    whatsappNumber: '(11) 99999-8888',
+    instagramHandle: '@acessorios.senhoritas',
+    pixKey: '',
+    pixKeyType: 'Telefone',
+    pixBeneficiary: '',
+    bannerNotice: '',
+    aboutText: '',
+    adminPin: '@Gaeldavi22',
+  };
+
+  const product: Product = {
+    id: 'prod-1',
+    code: 'BRI-100',
+    name: 'Brinco Argola Ouro',
+    category: 'brincos',
+    price: 90.0,
+    stock: 5,
+    description: '',
+    materials: 'Ouro 18k',
+    images: [],
+    createdAt: '',
+  };
+
+  const cart: CartItem[] = [{ product, quantity: 2 }];
+  const url = generateDirectCartWhatsAppUrl(cart, settings, 'Carla');
+
+  assert.ok(url.startsWith('https://wa.me/5511999998888?text='));
+  assert.ok(url.includes(encodeURIComponent('Carla')));
+  assert.ok(url.includes(encodeURIComponent('Brinco Argola Ouro')));
+  assert.ok(url.includes(encodeURIComponent('BRI-100')));
+});
+
 

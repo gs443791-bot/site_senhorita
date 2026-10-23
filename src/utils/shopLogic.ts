@@ -153,6 +153,52 @@ export function generateCartWhatsAppUrl(
 }
 
 /**
+ * Generates direct WhatsApp message URL directly from cart items (no on-site checkout needed)
+ */
+export function generateDirectCartWhatsAppUrl(
+  cart: { product: Product; quantity: number }[],
+  settings: StoreSettings,
+  customerName?: string
+): string {
+  const phone = cleanPhoneNumber(settings.whatsappNumber);
+  const { subtotal, totalQuantity } = calculateCartTotals(cart);
+
+  const itemsList = cart
+    .map((item, idx) => {
+      const unitPrice =
+        item.product.promotionalPrice && item.product.promotionalPrice > 0
+          ? item.product.promotionalPrice
+          : item.product.price;
+      const itemTotal = unitPrice * item.quantity;
+      return `${idx + 1}. *${item.product.name}* (Cód: ${item.product.code})\n   ${item.quantity}x de ${formatBRL(
+        unitPrice
+      )} = *${formatBRL(itemTotal)}*`;
+    })
+    .join('\n\n');
+
+  const greeting = customerName && customerName.trim()
+    ? `Olá, ${settings.storeName}! Meu nome é *${customerName.trim()}*.`
+    : `Olá, ${settings.storeName}!`;
+
+  const lines = [
+    `✨ *PEDIDO DE COMPRA - ${settings.storeName.toUpperCase()}* ✨`,
+    greeting,
+    `Gostaria de fechar meu pedido com as seguintes peças da minha sacola:`,
+    ``,
+    `🛍️ *ITENS SELECIONADOS (${totalQuantity} ${totalQuantity === 1 ? 'peça' : 'peças'}):*`,
+    itemsList,
+    ``,
+    `━━━━━━━━━━━━━━━━━━`,
+    `💵 *VALOR TOTAL:* *${formatBRL(subtotal)}*`,
+    `━━━━━━━━━━━━━━━━━━`,
+    ``,
+    `Poderia me confirmar a disponibilidade e passar as opções de pagamento e envio? Muito obrigada! 💖`,
+  ];
+
+  return `https://wa.me/${phone}?text=${encodeURIComponent(lines.join('\n'))}`;
+}
+
+/**
  * Automatic stock deduction logic when an order is placed
  */
 export function applyOrderStockDeduction(

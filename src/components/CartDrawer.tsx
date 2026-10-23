@@ -2,9 +2,8 @@ import React, { useState } from 'react';
 import { CartItem, Order, StoreSettings } from '../types';
 import {
   calculateCartTotals,
-  cleanPhoneNumber,
   formatBRL,
-  generateCartWhatsAppUrl,
+  generateDirectCartWhatsAppUrl,
   generateOrderNumber,
   generateUUID,
 } from '../utils/shopLogic';
@@ -16,12 +15,9 @@ import {
   ShoppingBag,
   MessageCircle,
   Truck,
-  CheckCircle,
-  Copy,
-  Check,
   Sparkles,
+  ExternalLink,
 } from 'lucide-react';
-import confetti from 'canvas-confetti';
 
 interface CartDrawerProps {
   isOpen: boolean;
@@ -45,12 +41,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   onClearCart,
 }) => {
   const [customerName, setCustomerName] = useState('');
-  const [customerPhone, setCustomerPhone] = useState('');
-  const [customerAddress, setCustomerAddress] = useState('');
-  const [customerNotes, setCustomerNotes] = useState('');
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [completedOrder, setCompletedOrder] = useState<Order | null>(null);
-  const [pixCopied, setPixCopied] = useState(false);
+  const [isSent, setIsSent] = useState(false);
+  const [lastWhatsAppUrl, setLastWhatsAppUrl] = useState('');
 
   if (!isOpen) return null;
 
@@ -59,28 +51,25 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
   const freeShippingProgress = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
 
-  const handleCheckout = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!customerName.trim() || !customerPhone.trim()) {
-      alert('Por favor, preencha seu nome e telefone WhatsApp para continuarmos!');
-      return;
-    }
-
+  const handleFinalizeOnWhatsApp = async () => {
     if (cart.length === 0) return;
 
-    setIsSubmitting(true);
+    const whatsappUrl = generateDirectCartWhatsAppUrl(cart, settings, customerName);
+    setLastWhatsAppUrl(whatsappUrl);
+
+    // Also register the order in background for merchant admin panel tracking
     try {
-      const newOrder: Order = {
+      const backgroundOrder: Order = {
         id: generateUUID(),
         orderNumber: generateOrderNumber(),
         createdAt: new Date().toISOString(),
-        customerName: customerName.trim(),
-        customerPhone: customerPhone.trim(),
-        customerAddress: customerAddress.trim(),
-        customerNotes: customerNotes.trim(),
+        customerName: customerName.trim() || 'Cliente WhatsApp',
+        customerPhone: settings.whatsappNumber,
+        customerAddress: 'A combinar no WhatsApp',
+        customerNotes: 'Pedido direcionado para o WhatsApp',
         totalAmount: subtotal,
         status: 'pendente',
-        paymentMethod: 'WhatsApp / PIX',
+        paymentMethod: 'WhatsApp',
         whatsappMessageSent: true,
         items: cart.map((item) => {
           const unitPrice =
@@ -98,41 +87,15 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           };
         }),
       };
-
-      // Save order and deduct stock automatically
-      await onOrderPlaced(newOrder);
-
-      // Trigger celebratory confetti
-      confetti({
-        particleCount: 100,
-        spread: 70,
-        origin: { y: 0.6 },
-        colors: ['#DFBA73', '#F4B8C7', '#C59B63', '#B5486B'],
-      });
-
-      // Generate WhatsApp link
-      const whatsappUrl = generateCartWhatsAppUrl(newOrder, settings);
-
-      // Save completed order state to show confirmation
-      setCompletedOrder(newOrder);
-      onClearCart();
-
-      // Open WhatsApp in new tab
-      window.open(whatsappUrl, '_blank');
-    } catch (err) {
-      console.error('Checkout error:', err);
-      alert('Ocorreu um erro ao registrar o pedido. Tente novamente.');
-    } finally {
-      setIsSubmitting(false);
+      await onOrderPlaced(backgroundOrder);
+    } catch (e) {
+      console.warn('Background order record error:', e);
     }
-  };
 
-  const copyPixKey = () => {
-    if (settings.pixKey) {
-      navigator.clipboard.writeText(settings.pixKey);
-      setPixCopied(true);
-      setTimeout(() => setPixCopied(false), 2000);
-    }
+    setIsSent(true);
+
+    // Open WhatsApp directly
+    window.open(whatsappUrl, '_blank');
   };
 
   return (
@@ -158,7 +121,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
           <button
             onClick={onClose}
             aria-label="Fechar sacola"
-            className="w-8 h-8 rounded-full hover:bg-white text-[#4A1D2B] flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full hover:bg-white text-[#4A1D2B] flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -166,107 +129,72 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
         {/* Content Body */}
         <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-4">
-          {completedOrder ? (
-            /* Order Success View */
-            <div className="text-center py-6 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center mx-auto">
-                <CheckCircle className="w-9 h-9" />
+          {cart.length === 0 ? (
+            /* Empty State */
+            <div className="text-center py-12 space-y-4">
+              <div className="w-16 h-16 rounded-full bg-[#FFF0F3] border border-[#F4CCD6] flex items-center justify-center mx-auto text-[#B5486B]">
+                <ShoppingBag className="w-8 h-8 opacity-60" />
               </div>
-              <h3 className="font-serif text-2xl font-bold text-[#3B1522]">
-                Pedido Realizado com Sucesso!
+              <div>
+                <h3 className="font-serif text-base font-bold text-[#3B1522]">Sua sacola está vazia</h3>
+                <p className="text-xs text-[#8C5D6C] mt-1">
+                  Explore nosso catálogo e selecione suas peças favoritas!
+                </p>
+              </div>
+              <button
+                onClick={onClose}
+                className="px-5 py-2.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm transition-all cursor-pointer"
+              >
+                Ver Catálogo de Peças
+              </button>
+            </div>
+          ) : isSent ? (
+            /* Post-Redirect Friendly Message */
+            <div className="text-center py-8 space-y-4 bg-[#FFF9FA] p-6 rounded-3xl border border-[#F4CCD6]">
+              <div className="w-14 h-14 rounded-full bg-[#25D366]/15 text-[#25D366] flex items-center justify-center mx-auto">
+                <MessageCircle className="w-8 h-8 fill-[#25D366]" />
+              </div>
+              <h3 className="font-serif text-xl font-bold text-[#3B1522]">
+                Direcionando para o WhatsApp...
               </h3>
-              <p className="text-xs text-[#69424F]">
-                Pedido <strong>#{completedOrder.orderNumber}</strong> foi gerado e enviado para o nosso WhatsApp.
+              <p className="text-xs text-[#69424F] leading-relaxed">
+                Sua lista de peças foi organizada com sucesso e a conversa no WhatsApp foi aberta para você combinar a entrega e o pagamento diretamente com a proprietária! ✨
               </p>
 
-              {/* PIX Payment Card */}
-              {settings.pixKey && (
-                <div className="p-4 rounded-2xl bg-[#FFF9FA] border border-[#DFBA73] text-left space-y-2 mt-4 shadow-gold-sm">
-                  <div className="flex items-center justify-between">
-                    <span className="text-xs font-bold text-[#8C3A55] flex items-center gap-1.5">
-                      <Sparkles className="w-3.5 h-3.5 text-[#C59B63]" />
-                      Pagamento via PIX
-                    </span>
-                    <span className="text-[10px] bg-[#DFBA73]/20 text-[#84532B] px-2 py-0.5 rounded-full font-semibold">
-                      Chave {settings.pixKeyType}
-                    </span>
-                  </div>
-
-                  <div className="text-xs text-[#555]">
-                    Favorecido: <strong>{settings.pixBeneficiary || settings.storeName}</strong>
-                  </div>
-
-                  <div className="flex items-center justify-between p-2 rounded-xl bg-white border border-[#F4CCD6]">
-                    <span className="text-xs font-mono font-medium text-[#333] truncate mr-2">
-                      {settings.pixKey}
-                    </span>
-                    <button
-                      onClick={copyPixKey}
-                      className="px-2.5 py-1 text-xs font-semibold bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#8C3A55] rounded-lg border border-[#F4CCD6] flex items-center gap-1 shrink-0"
-                    >
-                      {pixCopied ? (
-                        <>
-                          <Check className="w-3.5 h-3.5 text-emerald-600" />
-                          <span>Copiado!</span>
-                        </>
-                      ) : (
-                        <>
-                          <Copy className="w-3.5 h-3.5" />
-                          <span>Copiar PIX</span>
-                        </>
-                      )}
-                    </button>
-                  </div>
+              {lastWhatsAppUrl && (
+                <div className="pt-2">
+                  <a
+                    href={lastWhatsAppUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20bd5a] shadow-xs"
+                  >
+                    <span>Abrir WhatsApp Novamente</span>
+                    <ExternalLink className="w-3.5 h-3.5" />
+                  </a>
                 </div>
               )}
 
-              <div className="pt-4 flex flex-col gap-2">
-                <a
-                  href={generateCartWhatsAppUrl(completedOrder, settings)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="w-full py-3 px-4 rounded-xl text-xs font-bold text-white bg-[#25D366] hover:bg-[#20bd5a] flex items-center justify-center gap-2 shadow-md"
-                >
-                  <MessageCircle className="w-4 h-4 fill-white" />
-                  <span>Reabrir Conversa no WhatsApp</span>
-                </a>
-
+              <div className="pt-4 border-t border-[#F5D5DE] flex justify-center gap-2">
                 <button
                   onClick={() => {
-                    setCompletedOrder(null);
+                    setIsSent(false);
+                    onClearCart();
                     onClose();
                   }}
-                  className="w-full py-2.5 px-4 rounded-xl text-xs font-semibold text-[#8C3A55] hover:bg-[#FCE7EC]"
+                  className="px-4 py-2 rounded-xl text-xs font-semibold text-[#8C3A55] hover:bg-[#FCE7EC] cursor-pointer"
                 >
                   Continuar Navegando
                 </button>
               </div>
             </div>
-          ) : cart.length === 0 ? (
-            /* Empty Cart View */
-            <div className="text-center py-12 space-y-4">
-              <div className="w-16 h-16 rounded-full bg-[#FFF0F3] border border-[#F4CCD6] flex items-center justify-center mx-auto text-[#B5486B]">
-                <ShoppingBag className="w-8 h-8 opacity-60" />
-              </div>
-              <h3 className="font-serif text-xl font-bold text-[#3B1522]">Sua sacola está vazia</h3>
-              <p className="text-xs text-[#7A5461] max-w-xs mx-auto">
-                Explore nossas coleções de brincos, colares, anéis e pulseiras para adicionar peças ao seu pedido.
-              </p>
-              <button
-                onClick={onClose}
-                className="mt-2 px-5 py-2.5 rounded-full text-xs font-semibold text-white bg-gradient-to-r from-[#DFBA73] to-[#C59B63] hover:brightness-105 shadow-gold-sm"
-              >
-                Explorar Catálogo
-              </button>
-            </div>
           ) : (
-            /* Filled Cart View */
             <>
-              {/* Free Shipping Meter */}
-              <div className="p-3 rounded-2xl bg-[#FFF9FA] border border-[#F4CCD6]">
-                <div className="flex items-center justify-between text-xs mb-1.5">
-                  <span className="font-semibold text-[#8C3A55] flex items-center gap-1.5">
-                    <Truck className="w-3.5 h-3.5 text-[#C59B63]" />
+              {/* Free shipping meter */}
+              <div className="p-3.5 rounded-2xl bg-[#FFF5F7] border border-[#F4CCD6] space-y-2">
+                <div className="flex items-center justify-between text-xs font-medium text-[#4A1D2B]">
+                  <span className="flex items-center gap-1.5">
+                    <Truck className="w-4 h-4 text-[#C59B63]" />
                     {remainingForFreeShipping > 0
                       ? `Faltam ${formatBRL(remainingForFreeShipping)} para FRETE GRÁTIS!`
                       : 'Parabéns! Você ganhou Frete Grátis ✨'}
@@ -318,7 +246,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                           <div className="flex items-center border border-[#F4CCD6] rounded-lg overflow-hidden bg-[#FFF9FA]">
                             <button
                               onClick={() => onUpdateQuantity(item.product.id, item.quantity - 1)}
-                              className="p-1 text-[#4A1D2B] hover:bg-[#FCE7EC]"
+                              className="p-1 text-[#4A1D2B] hover:bg-[#FCE7EC] cursor-pointer"
+                              title="Diminuir"
                             >
                               <Minus className="w-3 h-3" />
                             </button>
@@ -328,7 +257,8 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                             <button
                               onClick={() => onUpdateQuantity(item.product.id, item.quantity + 1)}
                               disabled={item.quantity >= item.product.stock}
-                              className="p-1 text-[#4A1D2B] hover:bg-[#FCE7EC] disabled:opacity-30"
+                              className="p-1 text-[#4A1D2B] hover:bg-[#FCE7EC] disabled:opacity-30 cursor-pointer"
+                              title="Aumentar"
                             >
                               <Plus className="w-3 h-3" />
                             </button>
@@ -336,7 +266,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
 
                           <button
                             onClick={() => onRemoveItem(item.product.id)}
-                            className="p-1 text-[#B5486B] hover:text-red-700 hover:bg-[#FFF0F3] rounded-lg transition-colors ml-auto"
+                            className="p-1 text-[#B5486B] hover:text-red-700 hover:bg-[#FFF0F3] rounded-lg transition-colors ml-auto cursor-pointer"
                             title="Remover peça"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -348,77 +278,40 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 })}
               </div>
 
-              {/* Customer Info Form for Checkout */}
-              <form id="checkout-form" onSubmit={handleCheckout} className="pt-2 space-y-3">
-                <div className="text-xs font-bold text-[#4A1D2B] flex items-center gap-1.5">
-                  <span className="w-1.5 h-1.5 rounded-full bg-[#DFBA73]"></span>
-                  <span>Dados para entrega e contato</span>
+              {/* Informational WhatsApp Notice */}
+              <div className="p-3.5 rounded-2xl bg-[#E8F8EE] border border-[#A7E9BE] text-[#128C7E] space-y-1.5">
+                <div className="flex items-center gap-1.5 text-xs font-bold text-[#0D6359]">
+                  <MessageCircle className="w-4 h-4 fill-[#25D366] text-[#25D366]" />
+                  <span>Atendimento & Venda Direta no WhatsApp</span>
                 </div>
+                <p className="text-[11px] text-[#1B6D5F] leading-relaxed">
+                  Não cobramos nada pelo site! Ao clicar abaixo, a sua sacola completa será enviada para o nosso WhatsApp oficial para você tirar dúvidas, calcular o frete e combinar o pagamento diretamente com a proprietária.
+                </p>
+              </div>
 
-                <div>
-                  <label className="block text-[11px] font-medium text-[#69424F] mb-1">
-                    Seu Nome Completo *
-                  </label>
-                  <input
-                    type="text"
-                    required
-                    value={customerName}
-                    onChange={(e) => setCustomerName(e.target.value)}
-                    placeholder="Ex: Ana Clara Menezes"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-[#69424F] mb-1">
-                    Seu WhatsApp com DDD *
-                  </label>
-                  <input
-                    type="tel"
-                    required
-                    value={customerPhone}
-                    onChange={(e) => setCustomerPhone(e.target.value)}
-                    placeholder="Ex: (11) 98765-4321"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-[#69424F] mb-1">
-                    Endereço / Bairro / Cidade (opcional)
-                  </label>
-                  <input
-                    type="text"
-                    value={customerAddress}
-                    onChange={(e) => setCustomerAddress(e.target.value)}
-                    placeholder="Rua, número, bairro e cidade"
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-[11px] font-medium text-[#69424F] mb-1">
-                    Observação ou Dúvida (opcional)
-                  </label>
-                  <textarea
-                    rows={2}
-                    value={customerNotes}
-                    onChange={(e) => setCustomerNotes(e.target.value)}
-                    placeholder="Ex: É para presente, embalar com carinho..."
-                    className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73] resize-none"
-                  />
-                </div>
-              </form>
+              {/* Optional Client Name */}
+              <div className="pt-1">
+                <label className="block text-[11px] font-semibold text-[#4A1D2B] mb-1">
+                  Seu Nome (opcional, para a mensagem no WhatsApp):
+                </label>
+                <input
+                  type="text"
+                  value={customerName}
+                  onChange={(e) => setCustomerName(e.target.value)}
+                  placeholder="Como gostaria de ser chamada?"
+                  className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73]"
+                />
+              </div>
             </>
           )}
         </div>
 
-        {/* Footer with Totals & Finalize Button */}
-        {!completedOrder && cart.length > 0 && (
+        {/* Footer with Totals & Finalize on WhatsApp Button */}
+        {!isSent && cart.length > 0 && (
           <div className="p-4 sm:p-5 border-t border-[#F5D5DE] bg-[#FFFDFE] space-y-3">
             <div className="space-y-1 text-xs">
               <div className="flex justify-between text-[#69424F]">
-                <span>Subtotal ({totalQuantity} itens)</span>
+                <span>Subtotal ({totalQuantity} {totalQuantity === 1 ? 'item' : 'itens'})</span>
                 <span>{formatBRL(subtotal + savings)}</span>
               </div>
               {savings > 0 && (
@@ -428,23 +321,22 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                 </div>
               )}
               <div className="flex justify-between text-sm font-bold text-[#3B1522] pt-2 border-t border-[#F5D5DE]">
-                <span>Total a Pagar</span>
+                <span>Total Estimado</span>
                 <span className="font-serif text-lg text-[#8C3A55]">{formatBRL(subtotal)}</span>
               </div>
             </div>
 
             <button
-              type="submit"
-              form="checkout-form"
-              disabled={isSubmitting}
-              className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold text-white bg-[#25D366] hover:bg-[#20bd5a] transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg cursor-pointer disabled:opacity-50"
+              type="button"
+              onClick={handleFinalizeOnWhatsApp}
+              className="w-full py-3.5 px-4 rounded-2xl text-xs sm:text-sm font-bold text-white bg-[#25D366] hover:bg-[#20bd5a] transition-all flex items-center justify-center gap-2 shadow-md hover:shadow-lg cursor-pointer hover:scale-[1.01] active:scale-[0.99]"
             >
               <MessageCircle className="w-5 h-5 fill-white" />
-              <span>{isSubmitting ? 'Gerando Pedido...' : 'Finalizar Pedido pelo WhatsApp'}</span>
+              <span>Finalizar Pedido pelo WhatsApp</span>
             </button>
 
-            <p className="text-[10px] text-center text-[#999]">
-              Ao finalizar, seu pedido será salvo e a conversa abrirá com o pedido pronto!
+            <p className="text-[10px] text-center text-[#8C5D6C]">
+              ✨ Direciona direto para o WhatsApp oficial da Senhorita Acessórios
             </p>
           </div>
         )}

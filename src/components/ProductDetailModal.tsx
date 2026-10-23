@@ -1,7 +1,18 @@
 import React, { useState } from 'react';
 import { Product, StoreSettings } from '../types';
 import { formatBRL, generateSingleProductWhatsAppUrl } from '../utils/shopLogic';
-import { X, MessageCircle, ShoppingBag, ShieldCheck, Sparkles, Check, ChevronLeft, ChevronRight } from 'lucide-react';
+import {
+  X,
+  MessageCircle,
+  ShoppingBag,
+  ShieldCheck,
+  Sparkles,
+  Check,
+  ChevronLeft,
+  ChevronRight,
+  ZoomIn,
+} from 'lucide-react';
+import { ImageLightboxModal } from './ImageLightboxModal';
 
 interface ProductDetailModalProps {
   product: Product | null;
@@ -19,6 +30,7 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
   const [selectedImageIndex, setSelectedImageIndex] = useState(0);
   const [quantity, setQuantity] = useState(1);
   const [addedAnimation, setAddedAnimation] = useState(false);
+  const [isLightboxOpen, setIsLightboxOpen] = useState(false);
 
   if (!product) return null;
 
@@ -57,24 +69,43 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
         <div className="grid grid-cols-1 md:grid-cols-2">
           {/* Images Gallery */}
           <div className="bg-[#FFF5F7] p-6 flex flex-col justify-between">
-            <div className="relative aspect-square w-full rounded-2xl overflow-hidden border border-[#F4CCD6]/60 bg-white shadow-xs">
+            <div
+              className="relative aspect-square w-full rounded-2xl overflow-hidden border border-[#F4CCD6]/60 bg-white shadow-xs cursor-zoom-in group"
+              onClick={() => setIsLightboxOpen(true)}
+              title="Clique para ver a foto ampliada"
+            >
               <img
                 src={images[selectedImageIndex] || images[0]}
                 alt={product.name}
-                className="w-full h-full object-cover object-center"
+                className="w-full h-full object-cover object-center group-hover:scale-105 transition-transform duration-300"
               />
 
+              {/* Click to zoom badge */}
+              <div className="absolute bottom-2.5 right-2.5 px-2.5 py-1 rounded-full bg-black/65 backdrop-blur-xs text-white text-[11px] font-semibold flex items-center gap-1.5 shadow-md pointer-events-none group-hover:bg-black/80 transition-colors">
+                <ZoomIn className="w-3.5 h-3.5 text-[#DFBA73]" />
+                <span>Ampliar Foto</span>
+              </div>
+
               {images.length > 1 && (
-                <div className="absolute inset-x-2 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none">
+                <div
+                  className="absolute inset-x-2 top-1/2 -translate-y-1/2 flex justify-between pointer-events-none"
+                  onClick={(e) => e.stopPropagation()}
+                >
                   <button
-                    onClick={() => setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1))}
-                    className="pointer-events-auto w-8 h-8 rounded-full bg-white/80 hover:bg-white text-[#4A1D2B] flex items-center justify-center shadow-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageIndex((prev) => (prev > 0 ? prev - 1 : images.length - 1));
+                    }}
+                    className="pointer-events-auto w-8 h-8 rounded-full bg-white/85 hover:bg-white text-[#4A1D2B] flex items-center justify-center shadow-md cursor-pointer hover:scale-105"
                   >
                     <ChevronLeft className="w-4 h-4" />
                   </button>
                   <button
-                    onClick={() => setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0))}
-                    className="pointer-events-auto w-8 h-8 rounded-full bg-white/80 hover:bg-white text-[#4A1D2B] flex items-center justify-center shadow-sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setSelectedImageIndex((prev) => (prev < images.length - 1 ? prev + 1 : 0));
+                    }}
+                    className="pointer-events-auto w-8 h-8 rounded-full bg-white/85 hover:bg-white text-[#4A1D2B] flex items-center justify-center shadow-md cursor-pointer hover:scale-105"
                   >
                     <ChevronRight className="w-4 h-4" />
                   </button>
@@ -243,6 +274,18 @@ export const ProductDetailModal: React.FC<ProductDetailModalProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Fullscreen Image Lightbox Modal */}
+      <ImageLightboxModal
+        isOpen={isLightboxOpen}
+        onClose={() => setIsLightboxOpen(false)}
+        images={images}
+        initialIndex={selectedImageIndex}
+        productTitle={product.name}
+        productCode={product.code}
+        whatsappUrl={whatsappUrl}
+      />
     </div>
   );
 };
+
