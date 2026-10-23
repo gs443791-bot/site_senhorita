@@ -14,7 +14,6 @@ import {
   Minus,
   ShoppingBag,
   MessageCircle,
-  Truck,
   Sparkles,
   ExternalLink,
 } from 'lucide-react';
@@ -47,9 +46,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
   if (!isOpen) return null;
 
   const { subtotal, totalQuantity, savings } = calculateCartTotals(cart);
-  const freeShippingThreshold = settings.freeShippingAbove || 150;
-  const remainingForFreeShipping = Math.max(0, freeShippingThreshold - subtotal);
-  const freeShippingProgress = Math.min(100, Math.round((subtotal / freeShippingThreshold) * 100));
 
   const handleFinalizeOnWhatsApp = async () => {
     if (cart.length === 0) return;
@@ -190,25 +186,6 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
             </div>
           ) : (
             <>
-              {/* Free shipping meter */}
-              <div className="p-3.5 rounded-2xl bg-[#FFF5F7] border border-[#F4CCD6] space-y-2">
-                <div className="flex items-center justify-between text-xs font-medium text-[#4A1D2B]">
-                  <span className="flex items-center gap-1.5">
-                    <Truck className="w-4 h-4 text-[#C59B63]" />
-                    {remainingForFreeShipping > 0
-                      ? `Faltam ${formatBRL(remainingForFreeShipping)} para FRETE GRÁTIS!`
-                      : 'Parabéns! Você ganhou Frete Grátis ✨'}
-                  </span>
-                  <span className="font-bold text-[#C59B63]">{freeShippingProgress}%</span>
-                </div>
-                <div className="w-full h-2 bg-[#FCE7EC] rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-gradient-to-r from-[#DFBA73] to-[#C59B63] transition-all duration-500 rounded-full"
-                    style={{ width: `${freeShippingProgress}%` }}
-                  />
-                </div>
-              </div>
-
               {/* Items List */}
               <div className="space-y-3">
                 {cart.map((item) => {
@@ -285,7 +262,7 @@ export const CartDrawer: React.FC<CartDrawerProps> = ({
                   <span>Atendimento & Venda Direta no WhatsApp</span>
                 </div>
                 <p className="text-[11px] text-[#1B6D5F] leading-relaxed">
-                  Não cobramos nada pelo site! Ao clicar abaixo, a sua sacola completa será enviada para o nosso WhatsApp oficial para você tirar dúvidas, calcular o frete e combinar o pagamento diretamente com a proprietária.
+                  Não cobramos nada pelo site! Ao clicar abaixo, a sua sacola completa será enviada para o nosso WhatsApp oficial para você tirar dúvidas, consultar formas de envio e combinar o pagamento diretamente com a proprietária.
                 </p>
               </div>
 

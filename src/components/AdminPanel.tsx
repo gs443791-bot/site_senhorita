@@ -1094,7 +1094,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
               {/* Banner notice */}
               <div>
                 <label className="block text-xs font-semibold text-[#4A1D2B] mb-1">
-                  Texto da Faixa Superior (Avisos e Frete Grátis)
+                  Texto da Faixa Superior (Avisos e Novidades)
                 </label>
                 <input
                   type="text"

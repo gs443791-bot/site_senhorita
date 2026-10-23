@@ -13,7 +13,7 @@ CREATE TABLE IF NOT EXISTS store_settings (
   pix_key TEXT DEFAULT '',
   pix_key_type TEXT DEFAULT 'Telefone',
   pix_beneficiary TEXT DEFAULT 'Senhorita Acessórios',
-  banner_notice TEXT DEFAULT 'Frete grátis para compras acima de R$ 150 | Enviamos para todo o Brasil ✨',
+  banner_notice TEXT DEFAULT 'Enviamos para todo o Brasil | Atendimento exclusivo pelo WhatsApp ✨',
   about_text TEXT DEFAULT 'Bem-vinda à Senhorita Acessórios! Peças selecionadas com amor para realçar sua essência e beleza única.',
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
