@@ -1,6 +1,7 @@
 import { Customer, Order, OrderStatus, Product, ProductCategory, StoreSettings } from '../types';
 import { applyOrderStockDeduction, restoreOrderStock, generateUUID } from '../utils/shopLogic';
 import { getSupabaseClient } from './supabase';
+import { idbGet, idbSet, idbDelete } from './idb';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'senhorita_products_v1',
@@ -90,8 +91,8 @@ class StorageService {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data) {
-          return data.map((d: any) => ({
+        if (!error && data && data.length > 0) {
+          const mapped = data.map((d: any) => ({
             id: d.id,
             code: d.code,
             name: d.name,
@@ -106,20 +107,38 @@ class StorageService {
             createdAt: d.created_at,
             updatedAt: d.updated_at,
           }));
+          // Sync to IndexedDB for offline resilience
+          idbSet(STORAGE_KEYS.PRODUCTS, mapped).catch(() => {});
+          return mapped;
         }
       } catch (err) {
         console.warn('Supabase fetch failed, falling back to local storage:', err);
       }
     }
 
+    // 2. Check IndexedDB (virtually unlimited quota in modern browsers)
+    try {
+      const idbData = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
+      if (idbData && Array.isArray(idbData) && idbData.length > 0) {
+        return idbData;
+      }
+    } catch (e) {
+      console.warn('IndexedDB read error:', e);
+    }
+
+    // 3. Fallback to localStorage
     const local = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
     if (!local) {
-      // PER USER EXPLICIT REQUEST: "nao cadastre nenhum produto deixe que eu cadastro tudo"
-      // Start with empty catalog!
       return [];
     }
     try {
-      return JSON.parse(local);
+      const parsed = JSON.parse(local);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        // Migrate to IndexedDB for safety
+        idbSet(STORAGE_KEYS.PRODUCTS, parsed).catch(() => {});
+        return parsed;
+      }
+      return [];
     } catch {
       return [];
     }
@@ -175,7 +194,17 @@ class StorageService {
     } else {
       updated = [finalProduct, ...current];
     }
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+
+    // Always persist to IndexedDB first (no 5MB limit!)
+    await idbSet(STORAGE_KEYS.PRODUCTS, updated);
+
+    // Also attempt saving to localStorage, catching QuotaExceededError safely
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+    } catch (quotaErr) {
+      console.warn('localStorage quota reached, saved safely in IndexedDB:', quotaErr);
+    }
+
     return finalProduct;
   }
 
@@ -191,7 +220,12 @@ class StorageService {
 
     const current = await this.getProducts();
     const updated = current.filter((p) => p.id !== id);
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+    await idbSet(STORAGE_KEYS.PRODUCTS, updated);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
+    } catch (e) {
+      console.warn(e);
+    }
   }
 
   async updateStock(productId: string, newStock: number): Promise<void> {
@@ -213,7 +247,12 @@ class StorageService {
       }
     }
 
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(current));
+    await idbSet(STORAGE_KEYS.PRODUCTS, current);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(current));
+    } catch (e) {
+      console.warn(e);
+    }
   }
 
   // Orders Management with AUTOMATIC STOCK REDUCTION
@@ -556,13 +595,23 @@ class StorageService {
 
     const current = await this.getProducts();
     const merged = [...samples, ...current];
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+    await idbSet(STORAGE_KEYS.PRODUCTS, merged);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
+    } catch (e) {
+      console.warn(e);
+    }
     return merged;
   }
 
   // Clear catalog completely
   async clearAllProducts(): Promise<void> {
-    localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
+    await idbSet(STORAGE_KEYS.PRODUCTS, []);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
+    } catch (e) {
+      console.warn(e);
+    }
   }
 
   // Backup & Migration
@@ -577,13 +626,29 @@ class StorageService {
     return JSON.stringify(data, null, 2);
   }
 
-  importData(jsonString: string): boolean {
+  async importData(jsonString: string): Promise<boolean> {
     try {
       const data = JSON.parse(jsonString);
-      if (data.products) localStorage.setItem(STORAGE_KEYS.PRODUCTS, data.products);
-      if (data.orders) localStorage.setItem(STORAGE_KEYS.ORDERS, data.orders);
-      if (data.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, data.customers);
-      if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, data.settings);
+      if (data.products) {
+        const parsedProducts = typeof data.products === 'string' ? JSON.parse(data.products) : data.products;
+        await idbSet(STORAGE_KEYS.PRODUCTS, parsedProducts);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(parsedProducts));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      if (data.orders) {
+        const parsedOrders = typeof data.orders === 'string' ? JSON.parse(data.orders) : data.orders;
+        await idbSet(STORAGE_KEYS.ORDERS, parsedOrders);
+        try {
+          localStorage.setItem(STORAGE_KEYS.ORDERS, JSON.stringify(parsedOrders));
+        } catch (e) {
+          console.warn(e);
+        }
+      }
+      if (data.customers) localStorage.setItem(STORAGE_KEYS.CUSTOMERS, typeof data.customers === 'string' ? data.customers : JSON.stringify(data.customers));
+      if (data.settings) localStorage.setItem(STORAGE_KEYS.SETTINGS, typeof data.settings === 'string' ? data.settings : JSON.stringify(data.settings));
       return true;
     } catch {
       return false;

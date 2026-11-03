@@ -311,7 +311,7 @@ export default function App() {
       showToast('Ação restrita à administradora.');
       return;
     }
-    const success = storage.importData(jsonStr);
+    const success = await storage.importData(jsonStr);
     if (success) {
       await refreshData();
       showToast('Dados restaurados com sucesso!');
