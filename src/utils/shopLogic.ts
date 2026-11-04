@@ -256,11 +256,34 @@ export function generateOrderNumber(): string {
 }
 
 /**
- * Generates unique product code
+ * Generates unique product code (e.g. BRI-001, BRI-010)
+ * Safely inspects existing codes to find the highest number and avoid duplicate key collisions.
  */
-export function generateProductCode(category: string, currentCount: number): string {
+export function generateProductCode(
+  category: string,
+  existingCodesOrCount: number | string[] = 0
+): string {
   const prefix = category.slice(0, 3).toUpperCase();
-  const num = String(currentCount + 1).padStart(3, '0');
+  if (Array.isArray(existingCodesOrCount)) {
+    let maxNum = 0;
+    const regex = new RegExp(`^${prefix}-(\\d+)`, 'i');
+    for (const code of existingCodesOrCount) {
+      if (typeof code === 'string') {
+        const match = code.match(regex);
+        if (match) {
+          const n = parseInt(match[1], 10);
+          if (!isNaN(n) && n > maxNum) {
+            maxNum = n;
+          }
+        }
+      }
+    }
+    const nextNum = maxNum + 1;
+    return `${prefix}-${String(nextNum).padStart(3, '0')}`;
+  }
+
+  const count = typeof existingCodesOrCount === 'number' ? existingCodesOrCount : 0;
+  const num = String(count + 1).padStart(3, '0');
   return `${prefix}-${num}`;
 }
 

@@ -1,5 +1,5 @@
 import { Customer, Order, OrderStatus, Product, ProductCategory, StoreSettings } from '../types';
-import { applyOrderStockDeduction, restoreOrderStock, generateUUID } from '../utils/shopLogic';
+import { applyOrderStockDeduction, restoreOrderStock, generateUUID, generateProductCode } from '../utils/shopLogic';
 import { getSupabaseClient } from './supabase';
 import { idbGet, idbSet, idbDelete } from './idb';
 
@@ -83,6 +83,23 @@ export const SAMPLE_PRODUCTS: Omit<Product, 'id' | 'createdAt'>[] = [
 class StorageService {
   // Products Management
   async getProducts(): Promise<Product[]> {
+    // 1. Get locally cached products from IndexedDB / localStorage
+    let localProducts: Product[] = [];
+    try {
+      const idbData = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
+      if (idbData && Array.isArray(idbData)) {
+        localProducts = idbData;
+      } else {
+        const local = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+        if (local) {
+          localProducts = JSON.parse(local);
+        }
+      }
+    } catch (e) {
+      console.warn('Error reading local products:', e);
+    }
+
+    // 2. Fetch from Supabase if connected
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
@@ -91,8 +108,8 @@ class StorageService {
           .select('*')
           .order('created_at', { ascending: false });
 
-        if (!error && data && data.length > 0) {
-          const mapped = data.map((d: any) => ({
+        if (!error && data) {
+          const remoteProducts: Product[] = data.map((d: any) => ({
             id: d.id,
             code: d.code,
             name: d.name,
@@ -107,49 +124,68 @@ class StorageService {
             createdAt: d.created_at,
             updatedAt: d.updated_at,
           }));
-          // Sync to IndexedDB for offline resilience
-          idbSet(STORAGE_KEYS.PRODUCTS, mapped).catch(() => {});
-          return mapped;
+
+          // Smart merge: Remote products + any local products not yet synced
+          const remoteIds = new Set(remoteProducts.map((p) => p.id));
+          const localOnly = localProducts.filter((p) => !remoteIds.has(p.id));
+
+          // Sync any localOnly items to remote in background so they are never lost
+          if (localOnly.length > 0) {
+            for (const item of localOnly) {
+              Promise.resolve(
+                supabase.from('products').upsert({
+                  id: item.id,
+                  code: item.code,
+                  name: item.name,
+                  category: item.category,
+                  price: item.price,
+                  promotional_price: item.promotionalPrice,
+                  stock: item.stock,
+                  description: item.description,
+                  materials: item.materials,
+                  images: item.images,
+                  featured: item.featured,
+                  updated_at: item.updatedAt,
+                })
+              ).catch(() => {});
+            }
+          }
+
+          const combined = [...localOnly, ...remoteProducts];
+          await idbSet(STORAGE_KEYS.PRODUCTS, combined);
+          try {
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(combined));
+          } catch {}
+          return combined;
         }
       } catch (err) {
         console.warn('Supabase fetch failed, falling back to local storage:', err);
       }
     }
 
-    // 2. Check IndexedDB (virtually unlimited quota in modern browsers)
-    try {
-      const idbData = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
-      if (idbData && Array.isArray(idbData) && idbData.length > 0) {
-        return idbData;
-      }
-    } catch (e) {
-      console.warn('IndexedDB read error:', e);
-    }
-
-    // 3. Fallback to localStorage
-    const local = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
-    if (!local) {
-      return [];
-    }
-    try {
-      const parsed = JSON.parse(local);
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        // Migrate to IndexedDB for safety
-        idbSet(STORAGE_KEYS.PRODUCTS, parsed).catch(() => {});
-        return parsed;
-      }
-      return [];
-    } catch {
-      return [];
-    }
+    return localProducts;
   }
 
   async saveProduct(product: Omit<Product, 'id' | 'createdAt'> & { id?: string }): Promise<Product> {
     const isNew = !product.id;
     const now = new Date().toISOString();
+    const current = await this.getProducts();
+
+    // Check code collision against existing products with different IDs
+    let assignedCode = (product.code || '').trim().toUpperCase();
+    const isCodeTaken = current.some(
+      (p) => p.id !== product.id && p.code.trim().toUpperCase() === assignedCode
+    );
+    if (!assignedCode || isCodeTaken) {
+      assignedCode = generateProductCode(
+        product.category,
+        current.map((p) => p.code)
+      );
+    }
+
     const finalProduct: Product = {
       id: product.id || generateUUID(),
-      code: product.code || `SR-${Math.floor(100 + Math.random() * 900)}`,
+      code: assignedCode,
       name: product.name,
       category: product.category,
       price: Number(product.price),
@@ -166,7 +202,7 @@ class StorageService {
     const supabase = getSupabaseClient();
     if (supabase) {
       try {
-        await supabase.from('products').upsert({
+        const { error } = await supabase.from('products').upsert({
           id: finalProduct.id,
           code: finalProduct.code,
           name: finalProduct.name,
@@ -180,12 +216,34 @@ class StorageService {
           featured: finalProduct.featured,
           updated_at: finalProduct.updatedAt,
         });
+
+        if (error) {
+          console.warn('Supabase saveProduct error:', error);
+          // If duplicate key error, generate a new unique code and retry immediately
+          if (error.code === '23505') {
+            const fallbackCode = `${finalProduct.code}-${Math.floor(100 + Math.random() * 900)}`;
+            finalProduct.code = fallbackCode;
+            await supabase.from('products').upsert({
+              id: finalProduct.id,
+              code: fallbackCode,
+              name: finalProduct.name,
+              category: finalProduct.category,
+              price: finalProduct.price,
+              promotional_price: finalProduct.promotionalPrice,
+              stock: finalProduct.stock,
+              description: finalProduct.description,
+              materials: finalProduct.materials,
+              images: finalProduct.images,
+              featured: finalProduct.featured,
+              updated_at: finalProduct.updatedAt,
+            });
+          }
+        }
       } catch (err) {
         console.warn('Supabase saveProduct error:', err);
       }
     }
 
-    const current = await this.getProducts();
     const idx = current.findIndex((p) => p.id === finalProduct.id);
     let updated: Product[];
     if (idx >= 0) {
@@ -195,7 +253,7 @@ class StorageService {
       updated = [finalProduct, ...current];
     }
 
-    // Always persist to IndexedDB first (no 5MB limit!)
+    // Always persist to IndexedDB first (virtually unlimited quota)
     await idbSet(STORAGE_KEYS.PRODUCTS, updated);
 
     // Also attempt saving to localStorage, catching QuotaExceededError safely

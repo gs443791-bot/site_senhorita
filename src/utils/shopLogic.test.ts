@@ -11,6 +11,7 @@ import {
   restoreOrderStock,
   generateOrderNumber,
   generateUUID,
+  generateProductCode,
 } from './shopLogic';
 import { CartItem, Order, Product, StoreSettings } from '../types';
 
@@ -253,6 +254,18 @@ test('generateDirectCartWhatsAppUrl creates direct WhatsApp URL with items and n
   assert.ok(url.includes(encodeURIComponent('Carla')));
   assert.ok(url.includes(encodeURIComponent('Brinco Argola Ouro')));
   assert.ok(url.includes(encodeURIComponent('BRI-100')));
+});
+
+test('generateProductCode correctly calculates next sequential code and prevents collisions', () => {
+  // Test numeric count fallback
+  assert.equal(generateProductCode('brincos', 0), 'BRI-001');
+  assert.equal(generateProductCode('colares', 5), 'COL-006');
+
+  // Test array of existing codes
+  const existingCodes = ['BRI-001', 'BRI-008', 'BRI-009', 'COL-006'];
+  assert.equal(generateProductCode('brincos', existingCodes), 'BRI-010');
+  assert.equal(generateProductCode('colares', existingCodes), 'COL-007');
+  assert.equal(generateProductCode('aneis', existingCodes), 'ANE-001');
 });
 
 

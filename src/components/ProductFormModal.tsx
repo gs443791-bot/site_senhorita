@@ -9,7 +9,8 @@ interface ProductFormModalProps {
   onClose: () => void;
   productToEdit?: Product | null;
   onSave: (productData: Omit<Product, 'id' | 'createdAt'> & { id?: string }) => Promise<void>;
-  existingProductsCount: number;
+  existingProductsCount?: number;
+  existingCodes?: string[];
 }
 
 const PRESET_JEWELRY_PHOTOS = [
@@ -26,7 +27,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   onClose,
   productToEdit,
   onSave,
-  existingProductsCount,
+  existingProductsCount = 0,
+  existingCodes = [],
 }) => {
   const [name, setName] = useState('');
   const [category, setCategory] = useState<ProductCategory>('brincos');
@@ -41,6 +43,8 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isCompressing, setIsCompressing] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
+
+  const codesPool = existingCodes.length > 0 ? existingCodes : existingProductsCount;
 
   useEffect(() => {
     setErrorMessage('');
@@ -58,7 +62,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
     } else {
       setName('');
       setCategory('brincos');
-      setCode(generateProductCode('brincos', existingProductsCount));
+      setCode(generateProductCode('brincos', codesPool));
       setPrice('');
       setPromotionalPrice('');
       setStock('5');
@@ -67,7 +71,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
       setImageUrl('');
       setFeatured(false);
     }
-  }, [productToEdit, existingProductsCount, isOpen]);
+  }, [productToEdit, existingProductsCount, existingCodes, isOpen]);
 
   if (!isOpen) return null;
 
@@ -125,7 +129,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
         id: productToEdit?.id,
         name: name.trim(),
         category,
-        code: code.trim() || generateProductCode(category, existingProductsCount),
+        code: code.trim() || generateProductCode(category, codesPool),
         price: parsedPrice,
         promotionalPrice: parsedPromo && parsedPromo > 0 ? parsedPromo : null,
         stock: isNaN(parsedStock) ? 0 : parsedStock,
@@ -217,7 +221,7 @@ export const ProductFormModal: React.FC<ProductFormModalProps> = ({
                   const newCat = e.target.value as ProductCategory;
                   setCategory(newCat);
                   if (!productToEdit) {
-                    setCode(generateProductCode(newCat, existingProductsCount));
+                    setCode(generateProductCode(newCat, codesPool));
                   }
                 }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-[#F4CCD6] bg-[#FFF9FA] focus:outline-none focus:ring-2 focus:ring-[#DFBA73] capitalize"

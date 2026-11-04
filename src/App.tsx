@@ -222,7 +222,6 @@ export default function App() {
     await refreshData();
   };
 
-  // Product CRUD (Restricted strictly to authenticated admin)
   const handleSaveProduct = async (
     productData: Omit<Product, 'id' | 'createdAt'> & { id?: string }
   ) => {
@@ -230,9 +229,14 @@ export default function App() {
       showToast('Apenas a administradora da loja pode cadastrar ou alterar peças.');
       return;
     }
-    await storage.saveProduct(productData);
+    const saved = await storage.saveProduct(productData);
+    // Reset filters so the newly saved product is immediately visible on screen
+    if (activeCategory !== 'todos' && activeCategory !== productData.category) {
+      setActiveCategory('todos');
+    }
+    setSearchTerm('');
     await refreshData();
-    showToast('Peça salva no catálogo com sucesso! ✨');
+    showToast(`"${saved.name}" salva no catálogo com sucesso! ✨`);
   };
 
   const handleDeleteProduct = async (id: string) => {
@@ -555,6 +559,7 @@ export default function App() {
           productToEdit={productToEdit}
           onSave={handleSaveProduct}
           existingProductsCount={products.length}
+          existingCodes={products.map((p) => p.code)}
         />
       )}
 
