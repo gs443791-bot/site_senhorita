@@ -5,6 +5,7 @@ import { idbGet, idbSet, idbDelete } from './idb';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'senhorita_products_v1',
+  DELETED_PRODUCT_IDS: 'senhorita_deleted_product_ids_v1',
   ORDERS: 'senhorita_orders_v1',
   CUSTOMERS: 'senhorita_customers_v1',
   SETTINGS: 'senhorita_settings_v1',
@@ -81,8 +82,57 @@ export const SAMPLE_PRODUCTS: Omit<Product, 'id' | 'createdAt'>[] = [
 ];
 
 class StorageService {
+  // Deleted Products Tracking (Tombstones to prevent resurrecting deleted items)
+  async getDeletedProductIds(): Promise<Set<string>> {
+    try {
+      const idbData = await idbGet<string[]>(STORAGE_KEYS.DELETED_PRODUCT_IDS);
+      if (Array.isArray(idbData)) {
+        return new Set(idbData);
+      }
+      const local = localStorage.getItem(STORAGE_KEYS.DELETED_PRODUCT_IDS);
+      if (local) {
+        return new Set(JSON.parse(local));
+      }
+    } catch (e) {
+      console.warn('Error reading deleted product ids:', e);
+    }
+    return new Set<string>();
+  }
+
+  async markProductAsDeleted(id: string): Promise<void> {
+    try {
+      const set = await this.getDeletedProductIds();
+      set.add(id);
+      const arr = Array.from(set);
+      await idbSet(STORAGE_KEYS.DELETED_PRODUCT_IDS, arr);
+      try {
+        localStorage.setItem(STORAGE_KEYS.DELETED_PRODUCT_IDS, JSON.stringify(arr));
+      } catch {}
+    } catch (e) {
+      console.warn('Error marking product as deleted:', e);
+    }
+  }
+
+  async unmarkProductAsDeleted(id: string): Promise<void> {
+    try {
+      const set = await this.getDeletedProductIds();
+      if (set.has(id)) {
+        set.delete(id);
+        const arr = Array.from(set);
+        await idbSet(STORAGE_KEYS.DELETED_PRODUCT_IDS, arr);
+        try {
+          localStorage.setItem(STORAGE_KEYS.DELETED_PRODUCT_IDS, JSON.stringify(arr));
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Error unmarking product as deleted:', e);
+    }
+  }
+
   // Products Management
   async getProducts(): Promise<Product[]> {
+    const deletedIds = await this.getDeletedProductIds();
+
     // 1. Get locally cached products from IndexedDB / localStorage
     let localProducts: Product[] = [];
     try {
@@ -99,6 +149,9 @@ class StorageService {
       console.warn('Error reading local products:', e);
     }
 
+    // Filter out any locally cached product that was marked deleted
+    localProducts = localProducts.filter((p) => !deletedIds.has(p.id));
+
     // 2. Fetch from Supabase if connected
     const supabase = getSupabaseClient();
     if (supabase) {
@@ -109,27 +162,41 @@ class StorageService {
           .order('created_at', { ascending: false });
 
         if (!error && data) {
-          const remoteProducts: Product[] = data.map((d: any) => ({
-            id: d.id,
-            code: d.code,
-            name: d.name,
-            category: d.category as ProductCategory,
-            price: Number(d.price),
-            promotionalPrice: d.promotional_price ? Number(d.promotional_price) : null,
-            stock: Number(d.stock),
-            description: d.description || '',
-            materials: d.materials || '',
-            images: Array.isArray(d.images) ? d.images : [],
-            featured: Boolean(d.featured),
-            createdAt: d.created_at,
-            updatedAt: d.updated_at,
-          }));
+          // If remote returned any item marked as deleted, prune it in the background from Supabase
+          const staleRemote = data.filter((d: any) => deletedIds.has(d.id));
+          if (staleRemote.length > 0) {
+            for (const stale of staleRemote) {
+              Promise.resolve(
+                supabase.from('products').delete().eq('id', stale.id)
+              ).catch(() => {});
+            }
+          }
 
-          // Smart merge: Remote products + any local products not yet synced
+          const remoteProducts: Product[] = data
+            .filter((d: any) => !deletedIds.has(d.id))
+            .map((d: any) => ({
+              id: d.id,
+              code: d.code,
+              name: d.name,
+              category: d.category as ProductCategory,
+              price: Number(d.price),
+              promotionalPrice: d.promotional_price ? Number(d.promotional_price) : null,
+              stock: Number(d.stock),
+              description: d.description || '',
+              materials: d.materials || '',
+              images: Array.isArray(d.images) ? d.images : [],
+              featured: Boolean(d.featured),
+              createdAt: d.created_at,
+              updatedAt: d.updated_at,
+            }));
+
+          // Smart merge: Remote products + any local products not yet synced (and not deleted!)
           const remoteIds = new Set(remoteProducts.map((p) => p.id));
-          const localOnly = localProducts.filter((p) => !remoteIds.has(p.id));
+          const localOnly = localProducts.filter(
+            (p) => !remoteIds.has(p.id) && !deletedIds.has(p.id)
+          );
 
-          // Sync any localOnly items to remote in background so they are never lost
+          // Sync any genuine localOnly items to remote in background so they are never lost
           if (localOnly.length > 0) {
             for (const item of localOnly) {
               Promise.resolve(
@@ -263,26 +330,51 @@ class StorageService {
       console.warn('localStorage quota reached, saved safely in IndexedDB:', quotaErr);
     }
 
+    // Remove from tombstone if it was previously marked as deleted
+    await this.unmarkProductAsDeleted(finalProduct.id);
+
     return finalProduct;
   }
 
   async deleteProduct(id: string): Promise<void> {
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        await supabase.from('products').delete().eq('id', id);
-      } catch (err) {
-        console.warn('Supabase deleteProduct error:', err);
+    // 1. Mark ID as deleted in tombstones immediately so it can never be resurrected
+    await this.markProductAsDeleted(id);
+
+    // 2. Remove immediately from local caches (IndexedDB and localStorage)
+    let localProducts: Product[] = [];
+    try {
+      const idbData = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
+      if (Array.isArray(idbData)) {
+        localProducts = idbData;
+      } else {
+        const local = localStorage.getItem(STORAGE_KEYS.PRODUCTS);
+        if (local) {
+          localProducts = JSON.parse(local);
+        }
       }
+    } catch (e) {
+      console.warn('Error reading local products for deletion:', e);
     }
 
-    const current = await this.getProducts();
-    const updated = current.filter((p) => p.id !== id);
+    const updated = localProducts.filter((p) => p.id !== id);
     await idbSet(STORAGE_KEYS.PRODUCTS, updated);
     try {
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
     } catch (e) {
       console.warn(e);
+    }
+
+    // 3. Delete from Supabase
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        const { error } = await supabase.from('products').delete().eq('id', id);
+        if (error) {
+          console.warn('Supabase deleteProduct error:', error);
+        }
+      } catch (err) {
+        console.warn('Supabase deleteProduct exception:', err);
+      }
     }
   }
 
@@ -664,11 +756,29 @@ class StorageService {
 
   // Clear catalog completely
   async clearAllProducts(): Promise<void> {
+    try {
+      const current = await this.getProducts();
+      for (const p of current) {
+        await this.markProductAsDeleted(p.id);
+      }
+    } catch (e) {
+      console.warn('Error tombstoning products during clearAllProducts:', e);
+    }
+
     await idbSet(STORAGE_KEYS.PRODUCTS, []);
     try {
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
     } catch (e) {
       console.warn(e);
+    }
+
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      try {
+        await supabase.from('products').delete().neq('id', '___none___');
+      } catch (err) {
+        console.warn('Supabase clearAllProducts error:', err);
+      }
     }
   }
 

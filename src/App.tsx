@@ -245,8 +245,9 @@ export default function App() {
       return;
     }
     await storage.deleteProduct(id);
+    setCart((prev) => prev.filter((item) => item.product.id !== id));
     await refreshData();
-    showToast('Peça excluída.');
+    showToast('Peça excluída com sucesso! 🗑️');
   };
 
   const handleUpdateStock = async (productId: string, newStock: number) => {
