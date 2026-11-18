@@ -126,6 +126,7 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
   // Deletion modals state (replaces native window.confirm for reliable, elegant in-app prompts)
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isClearCatalogModalOpen, setIsClearCatalogModalOpen] = useState(false);
   const [isClearingCatalog, setIsClearingCatalog] = useState(false);
 
@@ -508,121 +509,242 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
             ) : (
-              <div className="bg-white rounded-3xl border border-[#F4CCD6] shadow-xs overflow-hidden">
-                <div className="overflow-x-auto">
-                  <table className="w-full text-left text-xs">
-                    <thead className="bg-[#FFF5F7] border-b border-[#F5D5DE] text-[#69424F] font-semibold uppercase text-[10px] tracking-wider">
-                      <tr>
-                        <th className="py-3 px-4">Peça / Foto</th>
-                        <th className="py-3 px-4">Código</th>
-                        <th className="py-3 px-4">Sub-aba</th>
-                        <th className="py-3 px-4">Preço</th>
-                        <th className="py-3 px-4">Estoque</th>
-                        <th className="py-3 px-4 text-right">Ações</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[#F5D5DE]/70">
-                      {filteredProducts.map((product) => {
-                        const isOut = product.stock <= 0;
-                        const isLow = product.stock > 0 && product.stock <= 3;
-                        const activePrice =
-                          product.promotionalPrice && product.promotionalPrice > 0
-                            ? product.promotionalPrice
-                            : product.price;
+              <>
+                {/* Mobile Product Cards (no horizontal scroll needed on phones) */}
+                <div className="md:hidden space-y-3">
+                  {filteredProducts.map((product) => {
+                    const isOut = product.stock <= 0;
+                    const isLow = product.stock > 0 && product.stock <= 3;
+                    const activePrice =
+                      product.promotionalPrice && product.promotionalPrice > 0
+                        ? product.promotionalPrice
+                        : product.price;
 
-                        return (
-                          <tr key={product.id} className="hover:bg-[#FFF9FA] transition-colors">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#FFF5F7] border border-[#F4CCD6] shrink-0">
-                                  <img
-                                    src={product.images[0]}
-                                    alt={product.name}
-                                    className="w-full h-full object-cover"
-                                  />
-                                </div>
-                                <div className="min-w-0">
-                                  <div className="font-semibold text-[#3B1522] truncate max-w-xs">
-                                    {product.name}
-                                  </div>
-                                  {product.materials && (
-                                    <div className="text-[11px] text-[#8C5D6C] truncate max-w-xs">
-                                      {product.materials}
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 font-mono text-[#7A5461]">{product.code}</td>
-                            <td className="py-3 px-4">
+                    return (
+                      <div
+                        key={product.id}
+                        className="bg-white rounded-2xl p-3.5 border border-[#F4CCD6] shadow-xs space-y-3"
+                      >
+                        <div className="flex items-start gap-3">
+                          <div className="w-16 h-16 rounded-xl overflow-hidden bg-[#FFF5F7] border border-[#F4CCD6] shrink-0">
+                            <img
+                              src={product.images[0]}
+                              alt={product.name}
+                              className="w-full h-full object-cover"
+                            />
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-1.5 flex-wrap mb-1">
                               <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] uppercase">
                                 {product.category}
                               </span>
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="font-bold text-[#8C3A55]">
+                              <span className="font-mono text-[11px] text-[#7A5461]">
+                                {product.code}
+                              </span>
+                            </div>
+                            <h3 className="font-semibold text-sm text-[#3B1522] leading-snug line-clamp-2">
+                              {product.name}
+                            </h3>
+                            <div className="mt-1 flex items-baseline gap-2">
+                              <span className="font-bold text-sm text-[#8C3A55]">
                                 {formatBRL(activePrice)}
-                              </div>
+                              </span>
                               {product.promotionalPrice && (
-                                <div className="text-[10px] text-gray-400 line-through">
+                                <span className="text-[11px] text-gray-400 line-through">
                                   {formatBRL(product.price)}
-                                </div>
-                              )}
-                            </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-1.5">
-                                <button
-                                  onClick={() => onUpdateStock(product.id, product.stock - 1)}
-                                  className="w-6 h-6 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold"
-                                  title="Diminuir estoque"
-                                >
-                                  -
-                                </button>
-                                <span
-                                  className={`px-2 py-0.5 rounded-lg text-xs font-bold min-w-[28px] text-center ${
-                                    isOut
-                                      ? 'bg-neutral-800 text-white'
-                                      : isLow
-                                      ? 'bg-amber-100 text-amber-800 border border-amber-300'
-                                      : 'bg-emerald-100 text-emerald-800'
-                                  }`}
-                                >
-                                  {product.stock}
                                 </span>
-                                <button
-                                  onClick={() => onUpdateStock(product.id, product.stock + 1)}
-                                  className="w-6 h-6 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold"
-                                  title="Aumentar estoque"
-                                >
-                                  +
-                                </button>
-                              </div>
-                            </td>
-                            <td className="py-3 px-4 text-right">
-                              <div className="flex items-center justify-end gap-1.5">
-                                <button
-                                  onClick={() => onEditProduct(product)}
-                                  className="p-1.5 rounded-lg text-[#7A5461] hover:text-[#3B1522] hover:bg-[#FCE7EC]"
-                                  title="Editar"
-                                >
-                                  <Edit2 className="w-4 h-4" />
-                                </button>
-                                <button
-                                  onClick={() => setProductToDelete(product)}
-                                  className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
-                                  title="Excluir"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </button>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
-                    </tbody>
-                  </table>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center justify-between pt-2 border-t border-[#F5D5DE]/70 gap-2">
+                          <div className="flex items-center gap-1.5">
+                            <span className="text-[11px] text-[#7A5461] font-medium">Estoque:</span>
+                            <button
+                              type="button"
+                              onClick={() => onUpdateStock(product.id, product.stock - 1)}
+                              aria-label={`Diminuir estoque de ${product.name}`}
+                              className="w-7 h-7 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold cursor-pointer"
+                            >
+                              -
+                            </button>
+                            <span
+                              className={`px-2 py-0.5 rounded-lg text-xs font-bold min-w-[28px] text-center ${
+                                isOut
+                                  ? 'bg-neutral-800 text-white'
+                                  : isLow
+                                  ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                  : 'bg-emerald-100 text-emerald-800'
+                              }`}
+                            >
+                              {product.stock}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onUpdateStock(product.id, product.stock + 1)}
+                              aria-label={`Aumentar estoque de ${product.name}`}
+                              className="w-7 h-7 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold cursor-pointer"
+                            >
+                              +
+                            </button>
+                          </div>
+
+                          <div className="flex items-center gap-2">
+                            <button
+                              type="button"
+                              onClick={() => onEditProduct(product)}
+                              aria-label={`Editar ${product.name}`}
+                              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-[#692E41] bg-[#FFF0F3] hover:bg-[#FCE7EC] border border-[#F4CCD6] flex items-center gap-1 cursor-pointer"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDeleteError(null);
+                                setProductToDelete(product);
+                              }}
+                              aria-label={`Excluir ${product.name}`}
+                              className="px-3 py-1.5 rounded-xl text-xs font-semibold text-red-600 bg-red-50 hover:bg-red-100 border border-red-200 flex items-center gap-1 cursor-pointer"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                              <span>Excluir</span>
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-              </div>
+
+                {/* Desktop Product Table */}
+                <div className="hidden md:block bg-white rounded-3xl border border-[#F4CCD6] shadow-xs overflow-hidden">
+                  <div className="overflow-x-auto">
+                    <table className="w-full text-left text-xs">
+                      <thead className="bg-[#FFF5F7] border-b border-[#F5D5DE] text-[#69424F] font-semibold uppercase text-[10px] tracking-wider">
+                        <tr>
+                          <th className="py-3 px-4">Peça / Foto</th>
+                          <th className="py-3 px-4">Código</th>
+                          <th className="py-3 px-4">Sub-aba</th>
+                          <th className="py-3 px-4">Preço</th>
+                          <th className="py-3 px-4">Estoque</th>
+                          <th className="py-3 px-4 text-right">Ações</th>
+                        </tr>
+                      </thead>
+                      <tbody className="divide-y divide-[#F5D5DE]/70">
+                        {filteredProducts.map((product) => {
+                          const isOut = product.stock <= 0;
+                          const isLow = product.stock > 0 && product.stock <= 3;
+                          const activePrice =
+                            product.promotionalPrice && product.promotionalPrice > 0
+                              ? product.promotionalPrice
+                              : product.price;
+
+                          return (
+                            <tr key={product.id} className="hover:bg-[#FFF9FA] transition-colors">
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-3">
+                                  <div className="w-12 h-12 rounded-xl overflow-hidden bg-[#FFF5F7] border border-[#F4CCD6] shrink-0">
+                                    <img
+                                      src={product.images[0]}
+                                      alt={product.name}
+                                      className="w-full h-full object-cover"
+                                    />
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="font-semibold text-[#3B1522] truncate max-w-xs">
+                                      {product.name}
+                                    </div>
+                                    {product.materials && (
+                                      <div className="text-[11px] text-[#8C5D6C] truncate max-w-xs">
+                                        {product.materials}
+                                      </div>
+                                    )}
+                                  </div>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 font-mono text-[#7A5461]">{product.code}</td>
+                              <td className="py-3 px-4">
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-semibold bg-[#FCE7EC] text-[#8C3A55] border border-[#F4CCD6] uppercase">
+                                  {product.category}
+                                </span>
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="font-bold text-[#8C3A55]">
+                                  {formatBRL(activePrice)}
+                                </div>
+                                {product.promotionalPrice && (
+                                  <div className="text-[10px] text-gray-400 line-through">
+                                    {formatBRL(product.price)}
+                                  </div>
+                                )}
+                              </td>
+                              <td className="py-3 px-4">
+                                <div className="flex items-center gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateStock(product.id, product.stock - 1)}
+                                    className="w-6 h-6 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold cursor-pointer"
+                                    title="Diminuir estoque"
+                                  >
+                                    -
+                                  </button>
+                                  <span
+                                    className={`px-2 py-0.5 rounded-lg text-xs font-bold min-w-[28px] text-center ${
+                                      isOut
+                                        ? 'bg-neutral-800 text-white'
+                                        : isLow
+                                        ? 'bg-amber-100 text-amber-800 border border-amber-300'
+                                        : 'bg-emerald-100 text-emerald-800'
+                                    }`}
+                                  >
+                                    {product.stock}
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => onUpdateStock(product.id, product.stock + 1)}
+                                    className="w-6 h-6 rounded-lg bg-[#FFF0F3] hover:bg-[#FCE7EC] text-[#4A1D2B] flex items-center justify-center font-bold cursor-pointer"
+                                    title="Aumentar estoque"
+                                  >
+                                    +
+                                  </button>
+                                </div>
+                              </td>
+                              <td className="py-3 px-4 text-right">
+                                <div className="flex items-center justify-end gap-1.5">
+                                  <button
+                                    type="button"
+                                    onClick={() => onEditProduct(product)}
+                                    aria-label={`Editar ${product.name}`}
+                                    className="p-1.5 rounded-lg text-[#7A5461] hover:text-[#3B1522] hover:bg-[#FCE7EC] cursor-pointer"
+                                    title="Editar"
+                                  >
+                                    <Edit2 className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    type="button"
+                                    onClick={() => {
+                                      setDeleteError(null);
+                                      setProductToDelete(product);
+                                    }}
+                                    aria-label={`Excluir ${product.name}`}
+                                    className="p-1.5 rounded-lg text-red-600 hover:bg-red-50 cursor-pointer"
+                                    title="Excluir"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1572,11 +1694,20 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                 </div>
               </div>
 
+              {deleteError && (
+                <div className="mt-4 p-3 rounded-xl bg-red-50 border border-red-200 text-red-700 text-xs font-medium">
+                  {deleteError}
+                </div>
+              )}
+
               <div className="mt-6 flex items-center justify-end gap-2.5">
                 <button
                   type="button"
                   disabled={isDeletingProduct}
-                  onClick={() => setProductToDelete(null)}
+                  onClick={() => {
+                    setDeleteError(null);
+                    setProductToDelete(null);
+                  }}
                   className="px-4 py-2.5 rounded-xl text-xs font-semibold text-[#7A5461] hover:bg-[#FCE7EC] cursor-pointer transition-colors"
                 >
                   Cancelar
@@ -1586,9 +1717,14 @@ export const AdminPanel: React.FC<AdminPanelProps> = ({
                   disabled={isDeletingProduct}
                   onClick={async () => {
                     setIsDeletingProduct(true);
+                    setDeleteError(null);
                     try {
                       await onDeleteProduct(productToDelete.id);
                       setProductToDelete(null);
+                    } catch (err: any) {
+                      setDeleteError(
+                        err?.message || 'Não foi possível excluir esta peça. Tente novamente.'
+                      );
                     } finally {
                       setIsDeletingProduct(false);
                     }

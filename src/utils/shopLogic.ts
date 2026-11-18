@@ -301,3 +301,27 @@ export function generateUUID(): string {
   });
 }
 
+/**
+ * Merges remote Supabase products with locally cached products without resurrecting
+ * items that were deleted on another device/session.
+ * Only local items explicitly tracked in pendingSyncIds (e.g. saved while offline)
+ * are kept and queued for sync back to remote.
+ */
+export function mergeRemoteAndLocalProducts(
+  remoteProducts: Product[],
+  localProducts: Product[],
+  pendingSyncIds: Set<string>,
+  deletedIds: Set<string>
+): { merged: Product[]; toSync: Product[] } {
+  const cleanRemote = remoteProducts.filter((p) => !deletedIds.has(p.id));
+  const remoteIds = new Set(cleanRemote.map((p) => p.id));
+
+  const toSync = localProducts.filter(
+    (p) => !remoteIds.has(p.id) && pendingSyncIds.has(p.id) && !deletedIds.has(p.id)
+  );
+
+  return {
+    merged: [...toSync, ...cleanRemote],
+    toSync,
+  };
+}

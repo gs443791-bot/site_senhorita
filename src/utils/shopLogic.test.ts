@@ -12,6 +12,7 @@ import {
   generateOrderNumber,
   generateUUID,
   generateProductCode,
+  mergeRemoteAndLocalProducts,
 } from './shopLogic';
 import { CartItem, CATEGORIES, Order, Product, StoreSettings } from '../types';
 
@@ -275,5 +276,54 @@ test('CATEGORIES includes presilhas with label and icon', () => {
   assert.ok(presilhasCat);
   assert.equal(presilhasCat.label, 'Presilhas');
   assert.ok(presilhasCat.iconName.length > 0);
+});
+
+test('mergeRemoteAndLocalProducts never resurrects deleted items from stale local caches', () => {
+  const makeProd = (id: string, code: string): Product => ({
+    id,
+    code,
+    name: `Peça ${code}`,
+    category: 'brincos',
+    price: 50,
+    stock: 1,
+    description: '',
+    images: ['https://example.com/photo.jpg'],
+    createdAt: '2026-11-01T00:00:00Z',
+  });
+
+  const remote = [makeProd('p-remote', 'BRI-001')];
+  const staleLocal = [
+    makeProd('p-remote', 'BRI-001'),
+    makeProd('p-deleted-elsewhere', 'BRI-002'), // was deleted on another phone/device
+    makeProd('p-offline-new', 'BRI-003'), // genuinely created offline
+    makeProd('p-tombstoned', 'BRI-004'),
+  ];
+  const pendingSyncIds = new Set<string>(['p-offline-new', 'p-tombstoned']);
+  const deletedIds = new Set<string>(['p-tombstoned']);
+
+  const { merged, toSync } = mergeRemoteAndLocalProducts(
+    remote,
+    staleLocal,
+    pendingSyncIds,
+    deletedIds
+  );
+
+  // Stale item NOT in pendingSyncIds must NOT be resurrected
+  assert.equal(
+    merged.some((p) => p.id === 'p-deleted-elsewhere'),
+    false
+  );
+  // Tombstoned item must NOT appear even if in pendingSyncIds
+  assert.equal(
+    merged.some((p) => p.id === 'p-tombstoned'),
+    false
+  );
+  // Offline item in pendingSyncIds IS preserved and queued for sync
+  assert.equal(toSync.length, 1);
+  assert.equal(toSync[0].id, 'p-offline-new');
+  assert.deepEqual(
+    merged.map((p) => p.id),
+    ['p-offline-new', 'p-remote']
+  );
 });
 

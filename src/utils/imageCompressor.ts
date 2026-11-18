@@ -44,8 +44,12 @@ export async function compressImage(
 
       const img = new Image();
       img.onerror = () => {
-        // If image object fails to decode (e.g. SVG or unusual format), resolve raw dataUrl
-        resolve(dataUrl);
+        // Only allow SVG passthrough; reject unreadable formats (e.g. unsupported HEIC/corrupt files)
+        if (typeof dataUrl === 'string' && dataUrl.startsWith('data:image/svg')) {
+          resolve(dataUrl);
+          return;
+        }
+        reject(new Error('Formato de imagem não suportado. Tente uma foto JPG, PNG ou WEBP.'));
       };
 
       img.onload = () => {

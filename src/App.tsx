@@ -130,6 +130,11 @@ export default function App() {
     return cart.reduce((acc, item) => acc + item.quantity, 0);
   }, [cart]);
 
+  // Stable list of existing product codes for ProductFormModal
+  const existingProductCodes = useMemo(() => {
+    return products.map((p) => p.code);
+  }, [products]);
+
   // Admin Access Handlers
   const handleToggleAdmin = () => {
     if (isAdminView) {
@@ -321,7 +326,7 @@ export default function App() {
       await refreshData();
       showToast('Dados restaurados com sucesso!');
     } else {
-      alert('Arquivo de backup inválido.');
+      showToast('Arquivo de backup inválido.');
     }
   };
 
@@ -560,7 +565,7 @@ export default function App() {
           productToEdit={productToEdit}
           onSave={handleSaveProduct}
           existingProductsCount={products.length}
-          existingCodes={products.map((p) => p.code)}
+          existingCodes={existingProductCodes}
         />
       )}
 

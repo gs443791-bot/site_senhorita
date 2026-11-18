@@ -1,11 +1,18 @@
 import { Customer, Order, OrderStatus, Product, ProductCategory, StoreSettings } from '../types';
-import { applyOrderStockDeduction, restoreOrderStock, generateUUID, generateProductCode } from '../utils/shopLogic';
+import {
+  applyOrderStockDeduction,
+  restoreOrderStock,
+  generateUUID,
+  generateProductCode,
+  mergeRemoteAndLocalProducts,
+} from '../utils/shopLogic';
 import { getSupabaseClient } from './supabase';
 import { idbGet, idbSet, idbDelete } from './idb';
 
 const STORAGE_KEYS = {
   PRODUCTS: 'senhorita_products_v1',
   DELETED_PRODUCT_IDS: 'senhorita_deleted_product_ids_v1',
+  PENDING_SYNC_PRODUCT_IDS: 'senhorita_pending_sync_product_ids_v1',
   ORDERS: 'senhorita_orders_v1',
   CUSTOMERS: 'senhorita_customers_v1',
   SETTINGS: 'senhorita_settings_v1',
@@ -129,9 +136,60 @@ class StorageService {
     }
   }
 
+  // Pending offline sync tracking (so only genuinely offline-created products sync up,
+  // preventing stale browser caches from resurrecting products deleted on other devices)
+  async getPendingSyncProductIds(): Promise<Set<string>> {
+    try {
+      const idbData = await idbGet<string[]>(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS);
+      if (Array.isArray(idbData)) {
+        return new Set(idbData);
+      }
+      const local = localStorage.getItem(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS);
+      if (local) {
+        return new Set(JSON.parse(local));
+      }
+    } catch (e) {
+      console.warn('Error reading pending sync product ids:', e);
+    }
+    return new Set<string>();
+  }
+
+  async addPendingSyncProductId(id: string): Promise<void> {
+    try {
+      const set = await this.getPendingSyncProductIds();
+      set.add(id);
+      const arr = Array.from(set);
+      await idbSet(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, arr);
+      try {
+        localStorage.setItem(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, JSON.stringify(arr));
+      } catch {}
+    } catch (e) {
+      console.warn('Error adding pending sync product id:', e);
+    }
+  }
+
+  async removePendingSyncProductId(id: string): Promise<void> {
+    try {
+      const set = await this.getPendingSyncProductIds();
+      if (set.has(id)) {
+        set.delete(id);
+        const arr = Array.from(set);
+        await idbSet(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, arr);
+        try {
+          localStorage.setItem(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, JSON.stringify(arr));
+        } catch {}
+      }
+    } catch (e) {
+      console.warn('Error removing pending sync product id:', e);
+    }
+  }
+
   // Products Management
   async getProducts(): Promise<Product[]> {
-    const deletedIds = await this.getDeletedProductIds();
+    const [deletedIds, pendingSyncIds] = await Promise.all([
+      this.getDeletedProductIds(),
+      this.getPendingSyncProductIds(),
+    ]);
 
     // 1. Get locally cached products from IndexedDB / localStorage
     let localProducts: Product[] = [];
@@ -190,40 +248,56 @@ class StorageService {
               updatedAt: d.updated_at,
             }));
 
-          // Smart merge: Remote products + any local products not yet synced (and not deleted!)
-          const remoteIds = new Set(remoteProducts.map((p) => p.id));
-          const localOnly = localProducts.filter(
-            (p) => !remoteIds.has(p.id) && !deletedIds.has(p.id)
+          // Merge without resurrecting items deleted on other devices/sessions
+          const { merged, toSync } = mergeRemoteAndLocalProducts(
+            remoteProducts,
+            localProducts,
+            pendingSyncIds,
+            deletedIds
           );
 
-          // Sync any genuine localOnly items to remote in background so they are never lost
-          if (localOnly.length > 0) {
-            for (const item of localOnly) {
+          // Clear pending flag for any items already present on remote
+          const remoteIdSet = new Set(remoteProducts.map((p) => p.id));
+          for (const pendingId of pendingSyncIds) {
+            if (remoteIdSet.has(pendingId)) {
+              this.removePendingSyncProductId(pendingId).catch(() => {});
+            }
+          }
+
+          // Sync only genuine offline-created items queued in pendingSyncIds
+          if (toSync.length > 0) {
+            for (const item of toSync) {
               Promise.resolve(
-                supabase.from('products').upsert({
-                  id: item.id,
-                  code: item.code,
-                  name: item.name,
-                  category: item.category,
-                  price: item.price,
-                  promotional_price: item.promotionalPrice,
-                  stock: item.stock,
-                  description: item.description,
-                  materials: item.materials,
-                  images: item.images,
-                  featured: item.featured,
-                  updated_at: item.updatedAt,
-                })
+                supabase
+                  .from('products')
+                  .upsert({
+                    id: item.id,
+                    code: item.code,
+                    name: item.name,
+                    category: item.category,
+                    price: item.price,
+                    promotional_price: item.promotionalPrice,
+                    stock: item.stock,
+                    description: item.description,
+                    materials: item.materials,
+                    images: item.images,
+                    featured: item.featured,
+                    updated_at: item.updatedAt,
+                  })
+                  .then(({ error: upsertErr }) => {
+                    if (!upsertErr) {
+                      this.removePendingSyncProductId(item.id).catch(() => {});
+                    }
+                  })
               ).catch(() => {});
             }
           }
 
-          const combined = [...localOnly, ...remoteProducts];
-          await idbSet(STORAGE_KEYS.PRODUCTS, combined);
+          await idbSet(STORAGE_KEYS.PRODUCTS, merged);
           try {
-            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(combined));
+            localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
           } catch {}
-          return combined;
+          return merged;
         }
       } catch (err) {
         console.warn('Supabase fetch failed, falling back to local storage:', err);
@@ -234,6 +308,11 @@ class StorageService {
   }
 
   async saveProduct(product: Omit<Product, 'id' | 'createdAt'> & { id?: string }): Promise<Product> {
+    const validImages = (product.images || []).map((img) => img.trim()).filter(Boolean);
+    if (validImages.length === 0) {
+      throw new Error('Por favor, carregue ou informe uma foto para a peça antes de salvar.');
+    }
+
     const isNew = !product.id;
     const now = new Date().toISOString();
     const current = await this.getProducts();
@@ -260,13 +339,14 @@ class StorageService {
       stock: Number(product.stock),
       description: product.description || '',
       materials: product.materials || '',
-      images: product.images && product.images.length > 0 ? product.images : ['https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?auto=format&fit=crop&w=800&q=80'],
+      images: validImages,
       featured: Boolean(product.featured),
       createdAt: isNew ? now : (product as Product).createdAt || now,
       updatedAt: now,
     };
 
     const supabase = getSupabaseClient();
+    let savedRemotely = false;
     if (supabase) {
       try {
         const { error } = await supabase.from('products').upsert({
@@ -290,7 +370,7 @@ class StorageService {
           if (error.code === '23505') {
             const fallbackCode = `${finalProduct.code}-${Math.floor(100 + Math.random() * 900)}`;
             finalProduct.code = fallbackCode;
-            await supabase.from('products').upsert({
+            const retryRes = await supabase.from('products').upsert({
               id: finalProduct.id,
               code: fallbackCode,
               name: finalProduct.name,
@@ -304,11 +384,34 @@ class StorageService {
               featured: finalProduct.featured,
               updated_at: finalProduct.updatedAt,
             });
+            if (retryRes.error) {
+              throw new Error(`Erro ao salvar peça na nuvem: ${retryRes.error.message}`);
+            }
+            savedRemotely = true;
+          } else {
+            const msg = (error.message || '').toLowerCase();
+            const isNetworkError = msg.includes('fetch') || msg.includes('network');
+            if (!isNetworkError) {
+              throw new Error(`Erro ao salvar peça na nuvem: ${error.message}`);
+            }
           }
+        } else {
+          savedRemotely = true;
         }
-      } catch (err) {
-        console.warn('Supabase saveProduct error:', err);
+      } catch (err: any) {
+        const msg = (err?.message || '').toLowerCase();
+        const isNetworkError = msg.includes('fetch') || msg.includes('network');
+        if (!isNetworkError && err?.message?.startsWith('Erro ao salvar')) {
+          throw err;
+        }
+        console.warn('Supabase saveProduct offline/network fallback:', err);
       }
+    }
+
+    if (savedRemotely) {
+      await this.removePendingSyncProductId(finalProduct.id);
+    } else if (supabase) {
+      await this.addPendingSyncProductId(finalProduct.id);
     }
 
     const idx = current.findIndex((p) => p.id === finalProduct.id);
@@ -337,10 +440,23 @@ class StorageService {
   }
 
   async deleteProduct(id: string): Promise<void> {
-    // 1. Mark ID as deleted in tombstones immediately so it can never be resurrected
-    await this.markProductAsDeleted(id);
+    // 1. Mark ID as deleted in tombstones and cancel any pending upload
+    await Promise.all([
+      this.markProductAsDeleted(id),
+      this.removePendingSyncProductId(id),
+    ]);
 
-    // 2. Remove immediately from local caches (IndexedDB and localStorage)
+    // 2. Delete from Supabase first if connected so errors are surfaced cleanly
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const { error } = await supabase.from('products').delete().eq('id', id);
+      if (error) {
+        console.warn('Supabase deleteProduct error:', error);
+        throw new Error(`Não foi possível excluir a peça da nuvem: ${error.message}`);
+      }
+    }
+
+    // 3. Remove from local caches (IndexedDB and localStorage)
     let localProducts: Product[] = [];
     try {
       const idbData = await idbGet<Product[]>(STORAGE_KEYS.PRODUCTS);
@@ -362,19 +478,6 @@ class StorageService {
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(updated));
     } catch (e) {
       console.warn(e);
-    }
-
-    // 3. Delete from Supabase
-    const supabase = getSupabaseClient();
-    if (supabase) {
-      try {
-        const { error } = await supabase.from('products').delete().eq('id', id);
-        if (error) {
-          console.warn('Supabase deleteProduct error:', error);
-        }
-      } catch (err) {
-        console.warn('Supabase deleteProduct exception:', err);
-      }
     }
   }
 
@@ -743,8 +846,33 @@ class StorageService {
       updatedAt: now,
     }));
 
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      const formatted = samples.map((p) => ({
+        id: p.id,
+        code: p.code,
+        name: p.name,
+        category: p.category,
+        price: p.price,
+        promotional_price: p.promotionalPrice,
+        stock: p.stock,
+        description: p.description,
+        materials: p.materials,
+        images: p.images,
+        featured: p.featured,
+        updated_at: p.updatedAt,
+      }));
+      const { error } = await supabase.from('products').upsert(formatted);
+      if (error) {
+        for (const s of samples) {
+          await this.addPendingSyncProductId(s.id);
+        }
+      }
+    }
+
     const current = await this.getProducts();
-    const merged = [...samples, ...current];
+    const existingIds = new Set(current.map((p) => p.id));
+    const merged = [...samples.filter((s) => !existingIds.has(s.id)), ...current];
     await idbSet(STORAGE_KEYS.PRODUCTS, merged);
     try {
       localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(merged));
@@ -760,25 +888,27 @@ class StorageService {
       const current = await this.getProducts();
       for (const p of current) {
         await this.markProductAsDeleted(p.id);
+        await this.removePendingSyncProductId(p.id);
       }
     } catch (e) {
       console.warn('Error tombstoning products during clearAllProducts:', e);
     }
 
-    await idbSet(STORAGE_KEYS.PRODUCTS, []);
-    try {
-      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
-    } catch (e) {
-      console.warn(e);
-    }
-
     const supabase = getSupabaseClient();
     if (supabase) {
-      try {
-        await supabase.from('products').delete().neq('id', '___none___');
-      } catch (err) {
-        console.warn('Supabase clearAllProducts error:', err);
+      const { error } = await supabase.from('products').delete().neq('id', '___none___');
+      if (error) {
+        throw new Error(`Não foi possível limpar o catálogo na nuvem: ${error.message}`);
       }
+    }
+
+    await idbSet(STORAGE_KEYS.PRODUCTS, []);
+    await idbSet(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, []);
+    try {
+      localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify([]));
+      localStorage.setItem(STORAGE_KEYS.PENDING_SYNC_PRODUCT_IDS, JSON.stringify([]));
+    } catch (e) {
+      console.warn(e);
     }
   }
 
@@ -798,7 +928,11 @@ class StorageService {
     try {
       const data = JSON.parse(jsonString);
       if (data.products) {
-        const parsedProducts = typeof data.products === 'string' ? JSON.parse(data.products) : data.products;
+        const parsedProducts: Product[] = typeof data.products === 'string' ? JSON.parse(data.products) : data.products;
+        for (const p of parsedProducts) {
+          await this.unmarkProductAsDeleted(p.id);
+          await this.addPendingSyncProductId(p.id);
+        }
         await idbSet(STORAGE_KEYS.PRODUCTS, parsedProducts);
         try {
           localStorage.setItem(STORAGE_KEYS.PRODUCTS, JSON.stringify(parsedProducts));
