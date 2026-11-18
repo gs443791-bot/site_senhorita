@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS products (
     'pulseiras',
     'braceletes',
     'acessorios-cabelo',
+    'presilhas',
     'relogio',
     'choker',
     'conjuntos',
@@ -44,6 +45,20 @@ CREATE TABLE IF NOT EXISTS products (
   created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()),
   updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now())
 );
+
+ALTER TABLE products DROP CONSTRAINT IF EXISTS products_category_check;
+ALTER TABLE products ADD CONSTRAINT products_category_check CHECK (category IN (
+  'brincos',
+  'colares',
+  'pulseiras',
+  'braceletes',
+  'acessorios-cabelo',
+  'presilhas',
+  'relogio',
+  'choker',
+  'conjuntos',
+  'aneis'
+));
 
 -- 3. Tabela de Clientes
 CREATE TABLE IF NOT EXISTS customers (

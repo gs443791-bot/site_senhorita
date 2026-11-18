@@ -13,7 +13,7 @@ import {
   generateUUID,
   generateProductCode,
 } from './shopLogic';
-import { CartItem, Order, Product, StoreSettings } from '../types';
+import { CartItem, CATEGORIES, Order, Product, StoreSettings } from '../types';
 
 test('formatBRL correctly formats Brazilian Real numbers', () => {
   const result = formatBRL(49.9);
@@ -266,6 +266,14 @@ test('generateProductCode correctly calculates next sequential code and prevents
   assert.equal(generateProductCode('brincos', existingCodes), 'BRI-010');
   assert.equal(generateProductCode('colares', existingCodes), 'COL-007');
   assert.equal(generateProductCode('aneis', existingCodes), 'ANE-001');
+  assert.equal(generateProductCode('presilhas', existingCodes), 'PRE-001');
+  assert.equal(generateProductCode('presilhas', [...existingCodes, 'PRE-001']), 'PRE-002');
 });
 
+test('CATEGORIES includes presilhas with label and icon', () => {
+  const presilhasCat = CATEGORIES.find((c) => c.id === 'presilhas');
+  assert.ok(presilhasCat);
+  assert.equal(presilhasCat.label, 'Presilhas');
+  assert.ok(presilhasCat.iconName.length > 0);
+});
 

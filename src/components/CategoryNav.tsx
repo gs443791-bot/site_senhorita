@@ -7,6 +7,7 @@ import {
   CircleDot,
   Disc,
   Crown,
+  Flower2,
   Watch,
   Shield,
   Layers,
@@ -36,6 +37,8 @@ const getCategoryIcon = (iconName: string) => {
       return <Disc className="w-4 h-4" />;
     case 'Crown':
       return <Crown className="w-4 h-4" />;
+    case 'Flower2':
+      return <Flower2 className="w-4 h-4" />;
     case 'Watch':
       return <Watch className="w-4 h-4" />;
     case 'Shield':

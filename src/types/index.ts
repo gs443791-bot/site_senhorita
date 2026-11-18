@@ -4,6 +4,7 @@ export type ProductCategory =
   | 'pulseiras'
   | 'braceletes'
   | 'acessorios-cabelo'
+  | 'presilhas'
   | 'relogio'
   | 'choker'
   | 'conjuntos'
@@ -22,7 +23,8 @@ export const CATEGORIES: CategoryInfo[] = [
   { id: 'colares', label: 'Colares', description: 'Correntes, pingentes e pontos de luz', iconName: 'Gem' },
   { id: 'pulseiras', label: 'Pulseiras', description: 'Pulseiras delicadas e elos', iconName: 'CircleDot' },
   { id: 'braceletes', label: 'Braceletes', description: 'Braceletes rígidos e ajustáveis', iconName: 'Disc' },
-  { id: 'acessorios-cabelo', label: 'Acessórios para Cabelo', description: 'Piranhas, presilhas, tiaras e grampos', iconName: 'Crown' },
+  { id: 'acessorios-cabelo', label: 'Acessórios para Cabelo', description: 'Piranhas, tiaras e grampos', iconName: 'Crown' },
+  { id: 'presilhas', label: 'Presilhas', description: 'Presilhas delicadas, tic-tac e grampos decorados', iconName: 'Flower2' },
   { id: 'relogio', label: 'Relógios', description: 'Relógios femininos sofisticados', iconName: 'Watch' },
   { id: 'choker', label: 'Chokers', description: 'Gargantilhas justas e elegantes', iconName: 'Shield' },
   { id: 'conjuntos', label: 'Conjuntos', description: 'Sets combinados de colar, brinco e pulseira', iconName: 'Layers' },
